@@ -1,0 +1,16 @@
+#麻将坐标参数
+
+# ADB配置
+adb:
+  path: "/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb"
+  screenshot:
+    remote_path: "/sdcard/screenshot.png"
+    local_dir: "/Users/mac/Downloads/test"
+    date_format: "%Y%m%d"  # 日期格式
+    filename_format: "{number}.png"  # 文件名格式
+    counter_file: "counter.txt"  # 计数器文件
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
