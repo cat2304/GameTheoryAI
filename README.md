@@ -25,7 +25,7 @@ GameTheoryAI/
 └── requirements.txt      # 项目依赖
 ```
 
-## 使用说明1
+## 使用说明
 
 ### 环境要求
 - Python >= 3.6
