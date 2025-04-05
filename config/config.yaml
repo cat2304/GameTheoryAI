@@ -2,10 +2,10 @@
 
 # ADB配置
 adb:
-  path: "/path/to/adb"  # ADB工具路径
+  path: "/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb"  # ADB工具路径
   screenshot:
     remote_path: "/sdcard/screenshot.png"  # 设备端保存路径
-    local_dir: "/path/to/save"  # 本地保存目录
+    local_dir: "/Users/mac/Downloads/test"  # 本地保存目录
     date_format: "%Y%m%d"  # 日期格式
     filename_format: "{number}.png"  # 文件名格式
     counter_file: "counter.txt"  # 计数器文件

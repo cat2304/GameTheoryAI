@@ -1,7 +1,14 @@
+import sys
+import os
+from pathlib import Path
+
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
+
 import time
 import yaml
 import logging
-from pathlib import Path
 from fetch.adb import ADBHelper
 
 # 配置日志
