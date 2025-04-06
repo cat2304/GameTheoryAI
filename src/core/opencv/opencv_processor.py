@@ -1,63 +1,103 @@
+import cv2
+import numpy as np
+import logging
 from pathlib import Path
-from src.utils.log_utils import get_logger
+from typing import Dict, Any, List, Optional
 from .opencv_algorithm import OpenCVAlgorithm
 
 class OpenCVProcessor:
-    def __init__(self):
-        # 初始化OpenCV算法引擎
-        self.opencv_engine = OpenCVAlgorithm()
-        
-        # 获取日志记录器
-        self.logger = get_logger("opencv_processor")
+    """OpenCV处理器，用于处理图像和识别游戏元素"""
     
-    def process(self, img_path):
-        """处理图片并识别麻将牌"""
+    def __init__(self):
+        """初始化OpenCV处理器"""
+        self.logger = logging.getLogger(__name__)
+        self.opencv_engine = OpenCVAlgorithm()
+    
+    def process(self, image_path):
+        """处理图片并识别游戏元素"""
         try:
-            # 检查文件是否存在
-            if not Path(img_path).exists():
-                raise FileNotFoundError(f"文件不存在: {img_path}")
+            # 读取图片
+            image = cv2.imread(str(image_path))
+            if image is None:
+                raise ValueError(f"无法读取图片: {image_path}")
             
-            self.logger.info(f"开始处理图片: {img_path}")
+            # 图像预处理
+            processed_img = self.opencv_engine.preprocess_image(image)
             
-            # 预处理图像
-            processed_img, original_img = self.opencv_engine.preprocess_image(img_path)
+            # 查找游戏元素区域
+            elements, detection_result = self.opencv_engine.find_game_elements(processed_img, image)
             
-            # 查找麻将牌区域
-            tiles = self.opencv_engine.find_mahjong_tiles(processed_img, original_img)
+            # 识别每个游戏元素
+            predictions = []
+            for element in elements:
+                result = self.opencv_engine.recognize_game_element(image, element['region'])
+                element['result'] = result
+                predictions.append(result)
             
-            # 识别每个麻将牌
-            for tile in tiles:
-                tile['result'] = self.opencv_engine.recognize_tile(original_img, tile)
+            # 绘制可视化结果
+            visualization = self.opencv_engine.draw_visualization(image, elements, predictions)
             
-            # 准备返回结果
-            result = {
+            self.logger.info(f"识别完成，共找到 {len(elements)} 个游戏元素")
+            
+            return {
                 'success': True,
-                'tiles': tiles,
-                'preprocessed': True,
-                'total_tiles': len(tiles)
+                'original_image': image,
+                'processed_image': processed_img,
+                'detection_result': detection_result,
+                'visualization': visualization,
+                'elements': elements,
+                'elements_count': len(elements)
             }
             
-            # 记录识别结果
-            self.logger.info(f"识别完成，共找到 {len(tiles)} 张麻将牌")
-            
-            return result
         except Exception as e:
             self.logger.error(f"处理失败: {str(e)}")
             return {
                 'success': False,
-                'error': str(e),
-                'tiles': []
+                'error': str(e)
             }
+    
+    def save_results(self, results, output_dir="output"):
+        """保存处理结果"""
+        try:
+            # 确保输出目录存在
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            
+            # 保存处理结果
+            cv2.imwrite(str(output_path / "original.png"), results['original_image'])
+            cv2.imwrite(str(output_path / "processed.png"), results['processed_image'])
+            cv2.imwrite(str(output_path / "detection.png"), results['detection_result'])
+            cv2.imwrite(str(output_path / "visualization.png"), results['visualization'])
+            
+            # 保存识别结果文本
+            with open(output_path / "results.txt", "w") as f:
+                f.write(f"识别到 {results['elements_count']} 个游戏元素\n\n")
+                for i, element in enumerate(results['elements']):
+                    x, y, w, h = element['region']
+                    f.write(f"元素 {i+1}:\n")
+                    f.write(f"  位置: ({x}, {y}, {w}, {h})\n")
+                    f.write(f"  识别结果: {element['result']}\n")
+                    f.write(f"  面积: {element['area']}\n")
+                    f.write(f"  宽高比: {element['aspect_ratio']:.2f}\n\n")
+            
+            self.logger.info(f"结果已保存到目录: {output_path}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"保存结果失败: {str(e)}")
+            return False
 
-# 使用示例
+# 测试代码
 if __name__ == "__main__":
-    # 初始化OpenCV引擎
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # 创建处理器并处理图片
     processor = OpenCVProcessor()
+    result = processor.process('game_screenshot.png')
     
-    # 处理截图
-    result = processor.process('mahjong_screenshot.png')
-    
-    # 打印结果
-    import pprint
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(result) 
+    if result['success']:
+        processor.save_results(result) 

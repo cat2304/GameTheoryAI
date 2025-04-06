@@ -2,7 +2,7 @@
 GameTheoryAI
 ===========
 
-麻将游戏AI辅助系统
+博弈AI辅助系统
 
 环境要求
 -------
@@ -28,10 +28,10 @@ src/
 -------
 ```bash
 # 创建conda环境
-conda create -n mahjong python=3.8
+conda create -n gameai python=3.8
 
 # 激活环境
-conda activate mahjong
+conda activate gameai
 
 # 安装依赖
 conda install pytest pyyaml opencv pillow numpy
@@ -42,7 +42,7 @@ pip install pytesseract
 -------
 1. 确保使用正确的Conda环境：
    ```bash
-   conda activate mahjong
+   conda activate gameai
    ```
 
 2. 运行测试：
@@ -58,15 +58,10 @@ pip install pytesseract
 
 注意事项
 -------
-1. 必须使用Conda 3.8环境
+1. 推荐使用Conda 3.8环境
 2. 所有依赖都需要通过conda安装（除了pytesseract）
 3. 运行前确保环境激活正确
 """
 
 # 版本信息
-__version__ = '1.0.0'
-
-# 检查Python版本
-import sys
-if not (sys.version_info.major == 3 and sys.version_info.minor == 8):
-    raise RuntimeError("此项目需要Python 3.8（Conda环境）") 
+__version__ = '1.0.0' 

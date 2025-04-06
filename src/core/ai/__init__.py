@@ -6,7 +6,7 @@ AI玩家模块
 """
 
 from typing import List, Dict, Optional
-from ..game import GameState
+from ..game.game_monitor import GameMonitor
 
 class AIPlayer:
     """AI玩家类
@@ -14,7 +14,7 @@ class AIPlayer:
     实现麻将游戏的AI决策逻辑。
     
     Attributes:
-        game_state: 当前游戏状态
+        game_monitor: 游戏监控器
         strategy: 使用的策略名称
     """
     
@@ -24,7 +24,7 @@ class AIPlayer:
         Args:
             strategy: 使用的策略名称
         """
-        self.game_state = GameState()
+        self.game_monitor = GameMonitor()
         self.strategy = strategy
     
     def update_state(self, state: Dict) -> None:
@@ -33,13 +33,8 @@ class AIPlayer:
         Args:
             state: 新的游戏状态
         """
-        self.game_state.update_tiles(state.get('tiles', []))
-        for tile in state.get('discarded_tiles', []):
-            self.game_state.add_discarded_tile(tile)
-        if state.get('turn') is not None:
-            self.game_state.turn = state['turn']
-        if state.get('is_active') is not None:
-            self.game_state.is_active = state['is_active']
+        # TODO: 实现状态更新逻辑
+        pass
     
     def decide_action(self) -> str:
         """决定下一步行动

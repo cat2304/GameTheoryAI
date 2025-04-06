@@ -35,8 +35,29 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs and Data
 *.log
+logs/
+data/
+temp/
+screenshots/
+database/
+cache/
+results/
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
 
 # Local configuration
-*.local.yaml 
+*.local.yaml
+.env
+
+# Build
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so 

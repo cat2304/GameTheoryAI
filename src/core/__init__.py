@@ -1,76 +1,48 @@
 """
-游戏核心逻辑模块
-=============
+核心模块
 
-本模块包含麻将游戏的核心逻辑和AI组件。
+本模块包含博弈游戏的核心逻辑和AI组件。
 
-主要组件：
----------
-1. 游戏状态管理
-    - 游戏状态表示
-    - 状态转换
-    - 动作验证
+包含以下子模块:
+- ai: AI决策逻辑
+- game: 游戏状态监控
+- ocr: OCR识别引擎
+- opencv: OpenCV图像处理
 
-2. AI策略
-    - 牌面评估
-    - 动作决策
-    - 概率计算
+主要功能:
+- 游戏规则实现
+- AI决策算法
+- 游戏状态评估
+- 图像处理与识别
 
-3. 游戏规则
-    - 麻将规则实现
-    - 和牌验证
-    - 分数计算
-
-主要类：
--------
-1. GameState
-    - 管理游戏当前状态
-    - 跟踪玩家手牌和弃牌
-    - 验证游戏动作
-
-2. AIPlayer
-    - 实现AI决策
-    - 评估可能的动作
-    - 计算最优动作
-
-3. RuleEngine
-    - 实现麻将规则
-    - 验证牌型和组合
-    - 计算分数
-
-使用示例：
---------
+使用示例:
 ```python
-from core.game import GameState
-from core.ai import AIPlayer
+from src.core.game.game_monitor import GameMonitor
+from src.core.ai.decision import AIDecision
 
-# 初始化游戏状态
-game_state = GameState()
+# 初始化游戏监控
+monitor = GameMonitor()
 
-# 创建AI玩家
-ai_player = AIPlayer()
+# 获取游戏状态
+game_state = monitor.get_state()
 
-# 获取AI决策
-action = ai_player.decide_action(game_state)
+# 使用AI决策
+ai = AIDecision()
+next_move = ai.decide(game_state)
 ```
 
-模块结构：
----------
-- game/: 游戏状态和逻辑实现
-- ai/: AI策略和决策
-- rules/: 游戏规则和验证
-- scoring/: 分数计算和牌型评估
-
-详细实现请参考各模块的具体文档。
+TODO:
+- 实现游戏规则
+- 扩展AI策略
+- 优化图像识别
 """
 
 # 版本信息
-__version__ = '1.0.0'
+__version__ = '0.1.0'
 
 # 模块级导入
-from .game import GameState
+from .game.game_monitor import GameMonitor
 from .ai import AIPlayer
-from .rules import RuleEngine
 
 # 公共接口列表
-__all__ = ['GameState', 'AIPlayer', 'RuleEngine'] 
+__all__ = ['GameMonitor', 'AIPlayer'] 

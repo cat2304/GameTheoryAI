@@ -1,8 +1,30 @@
-#麻将坐标参数
+# 应用全局配置
+
+# 环境配置
+environment:
+  python_version: "3.8"  # Python版本要求
+  tesseract_path: "/usr/local/bin/tesseract"  # Tesseract OCR路径
+  temp_dir: "/Users/mac/ai/temp"  # 临时文件目录
+  data_dir: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
+  log_dir: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志根目录
+
+# 目录结构配置
+directories:
+  data:
+    root: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
+    logs: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志目录
+    screenshots: "/Users/mac/cursor/GameTheoryAI/data/screenshots"  # 截图目录
+    database: "/Users/mac/cursor/GameTheoryAI/data/database"  # 数据库目录
+    results: "/Users/mac/cursor/GameTheoryAI/data/results"  # 结果目录
+    temp: "/Users/mac/cursor/GameTheoryAI/data/temp"  # 临时文件目录
+    config: "/Users/mac/cursor/GameTheoryAI/config"  # 配置文件目录
+    models: "/Users/mac/cursor/GameTheoryAI/data/models"  # 模型文件目录
+    cache: "/Users/mac/cursor/GameTheoryAI/data/cache"  # 缓存目录
 
 # ADB配置
 adb:
-  path: "/Applications/NemuPlayer.app/Contents/MacOS/adb"  # ADB工具路径
+  #path: "/Applications/NemuPlayer.app/Contents/MacOS/adb"  # ADB工具路径
+  path: "/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb"  # ADB工具路径
   screenshot:
     remote_path: "/sdcard/screenshot.png"  # 设备端保存路径
     local_temp_dir: "/Users/mac/ai/temp/img"  # 本地临时目录
@@ -10,7 +32,41 @@ adb:
     filename_format: "{number}.png"  # 文件名格式
     counter_file: "counter.txt"  # 计数器文件
     interval: 5  # 截图间隔（秒）
-    save_path: /Users/mac/ai/temp/img  # 截图保存路径
+    save_path: "/Users/mac/cursor/GameTheoryAI/data/screenshots"  # 截图保存路径
+
+# OCR配置
+ocr:
+  engine: "tesseract"  # OCR引擎类型：tesseract/tencent
+  interval: 5  # OCR识别间隔（秒）
+  tesseract:
+    lang: "chi_sim"  # 语言包
+    config: "--psm 6"  # Tesseract配置参数
+    preprocess:
+      resize: true  # 是否调整大小
+      resize_width: 800  # 调整后的宽度
+      resize_height: 600  # 调整后的高度
+      denoise: true  # 是否降噪
+      threshold: true  # 是否二值化
+      threshold_value: 127  # 二值化阈值
+  tencent:
+    secret_id: ""  # 腾讯云SecretId
+    secret_key: ""  # 腾讯云SecretKey
+    region: "ap-guangzhou"  # 腾讯云区域
+
+# 游戏配置
+game:
+  name: "麻将"  # 游戏名称
+  version: "1.0.0"  # 游戏版本
+  regions:
+    hand_tiles: [100, 200, 300, 400]  # 手牌区域坐标 [x1, y1, x2, y2]
+    discarded_tiles: [500, 200, 600, 400]  # 弃牌区域坐标 [x1, y1, x2, y2]
+    score: [700, 100, 800, 150]  # 分数区域坐标 [x1, y1, x2, y2]
+  tile_types:
+    - "万"
+    - "筒"
+    - "条"
+    - "风"
+    - "箭"
 
 # 日志配置
 logging:
@@ -20,13 +76,50 @@ logging:
   backup_count: 5  # 保留的备份文件数量
   file:
     enabled: true  # 是否启用文件日志
-    dir: "data/logs"  # 日志文件目录
+    dir: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志文件目录
     name_format: "{name}_%Y%m%d.log"  # 日志文件名格式
+  console:
+    enabled: true  # 是否启用控制台日志
+    level: "INFO"  # 控制台日志级别
+  rotation:
+    when: "midnight"  # 日志轮转时间
+    interval: 1  # 轮转间隔（天）
+    backup_count: 7  # 保留的备份文件数量
 
-# 腾讯云OCR配置
-tencent:
-  secret_id: ""  # 腾讯云SecretId
-  secret_key: ""  # 腾讯云SecretKey
-  ocr:
-    endpoint: ocr.tencentcloudapi.com
-    region: ""  # 地域，如：ap-guangzhou
+# 界面配置
+ui:
+  window:
+    title: "麻将AI助手"  # 窗口标题
+    width: 800  # 窗口宽度
+    height: 600  # 窗口高度
+  theme:
+    primary_color: "#4CAF50"  # 主题主色
+    secondary_color: "#8BC34A"  # 主题次色
+    background_color: "#F5F5F5"  # 背景色
+    text_color: "#333333"  # 文字颜色
+  font:
+    family: "Microsoft YaHei"  # 字体
+    size: 12  # 字体大小
+
+# 性能配置
+performance:
+  max_threads: 4  # 最大线程数
+  queue_size: 100  # 队列大小
+  batch_size: 10  # 批处理大小
+  cache_size: 1000  # 缓存大小
+  timeout: 30  # 超时时间（秒）
+
+# 数据存储配置
+storage:
+  database:
+    type: "sqlite"  # 数据库类型
+    path: "/Users/mac/cursor/GameTheoryAI/data/database/game.db"  # 数据库路径
+  screenshots:
+    enabled: true  # 是否保存截图
+    max_count: 1000  # 最大保存数量
+    compression: true  # 是否压缩
+    compression_quality: 80  # 压缩质量
+  results:
+    enabled: true  # 是否保存结果
+    format: "json"  # 结果格式
+    path: "/Users/mac/cursor/GameTheoryAI/data/results"  # 结果保存路径

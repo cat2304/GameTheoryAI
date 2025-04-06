@@ -1,0 +1,19 @@
+{
+    "tesseract": {
+        "path": "/usr/local/bin/tesseract",
+        "lang": "chi_sim+eng",
+        "config": "--psm 6"
+    },
+    "preprocessing": {
+        "resize_factor": 2.0,
+        "blur_kernel": [5, 5],
+        "threshold_min": 127,
+        "threshold_max": 255
+    },
+    "detection": {
+        "min_area": 1000,
+        "max_area": 50000,
+        "aspect_ratio_min": 0.2,
+        "aspect_ratio_max": 5.0
+    }
+} 
