@@ -1,3 +1,13 @@
-pyyaml>=6.0.2
-psutil>=5.9.0
-flask>=2.0.0 
+# 基础依赖
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+
+# 测试依赖
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# 腾讯云SDK
+tencentcloud-sdk-python>=3.0.0 

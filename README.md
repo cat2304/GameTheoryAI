@@ -1,62 +1,147 @@
 # GameTheoryAI
 
-## 核心功能
+麻将游戏分析工具，支持OCR识别和游戏监控。
 
-### ADB工具模块
-- 自动截图功能
-- 文件存储规则：
-  - 按日期组织（YYYYMMDD）
-  - 自动递增命名（1.png, 2.png, ...）
-- 配置文件支持：
-  - ADB路径配置
-  - 保存目录配置
-  - 文件命名规则配置
+## 功能特点
+
+- OCR麻将牌识别
+- 实时游戏监控
+- 自动截图和分析
+- Web界面展示
+- ADB设备控制
 
 ## 项目结构
+
 ```
 GameTheoryAI/
-├── config/
-│   └── config.yaml      # 配置文件
-├── fetch/
-│   ├── __init__.py      # ADB工具包
-│   └── adb.py           # ADB工具实现
-├── test/
-│   └── test_screenshot.py # 测试脚本
-└── requirements.txt      # 项目依赖
+├── src/                    # 源代码目录
+│   ├── core/              # 核心功能
+│   │   ├── ocr/          # OCR相关功能
+│   │   └── game/         # 游戏相关功能
+│   ├── utils/            # 工具函数
+│   └── web/             # Web界面
+├── tests/                # 测试目录
+├── data/                 # 数据目录
+│   ├── screenshots/     # 截图存储
+│   └── logs/           # 日志存储
+├── config/              # 配置文件
+└── docs/               # 文档
+```
+
+## 环境要求
+
+- Python: Conda 环境 3.8
+  ```bash
+  # 创建conda环境
+  conda create -n mahjong python=3.8
+  
+  # 激活环境
+  conda activate mahjong
+  
+  # 安装依赖
+  conda install pytest pyyaml opencv pillow numpy
+  pip install pytesseract
+  ```
+
+## 安装说明
+
+1. 克隆仓库：
+```bash
+git clone https://github.com/yourusername/GameTheoryAI.git
+cd GameTheoryAI
+```
+
+2. 安装依赖：
+```bash
+# 确保在conda环境中
+conda activate mahjong
+
+# 安装项目依赖
+pip install -e .
+```
+
+3. 安装Tesseract OCR：
+```bash
+# Mac
+brew install tesseract
+
+# Ubuntu
+sudo apt-get install tesseract-ocr
+
+# Windows
+# 下载安装器：https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
 ## 使用说明
 
-### 环境要求
-- Python >= 3.6
-- ADB工具
-- 依赖包：`pip install -r requirements.txt`
+1. 配置：
+   - 编辑 `config/app_config.yaml` 设置ADB路径和其他参数
+   - 编辑 `config/ocr_config.json` 设置OCR识别参数
 
-### 基本用法
+2. 运行游戏监控：
 ```python
-from fetch.adb import ADBHelper
+from src.core.game.monitor import MahjongGameMonitor
 
-# 创建ADB助手实例
-adb = ADBHelper()
-
-# 执行截图
-screenshot_path = adb.take_screenshot()
-print(f"截图保存在: {screenshot_path}")
+monitor = MahjongGameMonitor()
+monitor.start()
 ```
 
-### 配置文件说明
-配置文件位置：`config/config.yaml`
+3. 运行Web界面：
+```bash
+# 确保在conda环境中
+conda activate mahjong
+python src/web/app.py
+```
+
+## 开发指南
+
+1. 环境设置
+   - 确保使用 Conda 3.8 环境
+   - 安装所有必要依赖
+   - 配置 ADB 工具（用于Android设备交互）
+
+2. 运行测试
+   ```bash
+   # 确保在conda环境中
+   conda activate mahjong
+   
+   # 运行测试
+   python -m pytest tests/
+   ```
+
+3. 代码规范
+   - 使用 Python 类型注解
+   - 遵循 PEP 8 编码规范
+   - 所有函数和类都需要添加文档字符串
+
+## 配置说明
+
+主配置文件：`app_config.yml`
+
 ```yaml
+# 示例配置
 adb:
-  path: "/path/to/adb"  # ADB工具路径
+  path: "adb"
   screenshot:
-    remote_path: "/sdcard/screenshot.png"  # 设备端保存路径
-    local_dir: "/path/to/save"  # 本地保存目录
-    date_format: "%Y%m%d"  # 日期格式
-    filename_format: "{number}.png"  # 文件名格式
-    counter_file: "counter.txt"  # 计数器文件
-
+    remote_path: "/sdcard/screenshot.png"
+    local_dir: "data/screenshots"
+    
 logging:
-  level: "INFO"  # 日志级别
-  format: "%(asctime)s - %(levelname)s - %(message)s"  # 日志格式
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 ```
+
+## 注意事项
+
+- 必须使用 Conda 3.8 环境
+- 运行前检查配置文件是否正确
+- 确保 ADB 工具可用且设备已连接
+- 不要使用 venv，本项目只支持 conda 环境
+
+## 许可证
+
+MIT License
+
+## 作者
+
+GameTheoryAI Team
