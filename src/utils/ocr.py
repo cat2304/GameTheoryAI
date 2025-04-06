@@ -24,7 +24,7 @@ def get_logger(name: str) -> logging.Logger:
         logger.addHandler(handler)
         
         # 添加文件处理器
-        log_dir = "data/logs"
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
         os.makedirs(log_dir, exist_ok=True)
         
         file_handler = logging.handlers.RotatingFileHandler(
@@ -261,7 +261,7 @@ def handle_ocr_test(game_ocr, config_manager):
 
     try:
         # 从配置获取截图目录
-        temp_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+        temp_dir = config_manager.get('environment.temp_dir')
         screenshot_dir = os.path.join(temp_dir, 'screenshots')
         
         # 自动查找最新截图

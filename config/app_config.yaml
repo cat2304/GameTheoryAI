@@ -2,13 +2,12 @@
 
 # 应用配置
 app:
-  # 默认执行的任务（1-6，0表示显示菜单）
+  # 默认执行的任务（1-5，0表示显示菜单）
   # 1: 检查设备连接状态
   # 2: 启动ADB服务
   # 3: 执行单次截图
   # 4: 启动定时截图任务
-  # 5: 单张OCR识别
-  # 6: 打印当前配置
+  # 5: 打印当前配置
   default_task: 5
 
 # 环境配置
@@ -26,6 +25,18 @@ directories:
     tententimg: "/Users/mac/cursor/GameTheoryAI/data/tententimg"  # 数据根目录
     database: "/Users/mac/cursor/GameTheoryAI/data/database"  # 数据库目录
     cache: "/Users/mac/cursor/GameTheoryAI/data/cache"  # 缓存目录
+
+# 日志级别配置
+log_levels:
+  DEBUG: 10
+  INFO: 20
+  WARNING: 30
+  ERROR: 40
+  # 模块日志级别
+  default: "INFO"
+  adb: "INFO"
+  screenshot: "INFO"
+  ocr: "DEBUG"
 
 # ADB配置
 adb:

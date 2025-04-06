@@ -4,33 +4,63 @@
 提供系统工具、ADB工具和配置管理功能。
 """
 
-import os, cv2, yaml, numpy as np, logging, subprocess, time, threading, signal, sys, json
+import os, yaml, logging, subprocess, time, threading, sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 import logging.handlers
+import uuid
 try:
-    import pngquant  # 尝试导入pngquant库
     PNGQUANT_AVAILABLE = True
 except ImportError:
     PNGQUANT_AVAILABLE = False
 
-# 导入OCR相关功能
-from .ocr import GameOCR, handle_ocr_test, find_latest_screenshot
+# 从配置文件加载日志级别常量
+def load_log_levels(config_path="config/app_config.yaml"):
+    """从配置文件加载日志级别常量，如果找不到则抛出异常"""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+        if 'log_levels' not in config:
+            raise ValueError("配置文件中未找到'log_levels'配置项")
+            
+        log_levels = config['log_levels']
+        
+        # 提取常量 - 不使用默认值
+        if 'DEBUG' not in log_levels:
+            raise ValueError("日志级别配置中未找到'DEBUG'项")
+        if 'INFO' not in log_levels:
+            raise ValueError("日志级别配置中未找到'INFO'项")
+        if 'WARNING' not in log_levels:
+            raise ValueError("日志级别配置中未找到'WARNING'项")
+        if 'ERROR' not in log_levels:
+            raise ValueError("日志级别配置中未找到'ERROR'项")
+        
+        DEBUG = log_levels['DEBUG']
+        INFO = log_levels['INFO']
+        WARNING = log_levels['WARNING']
+        ERROR = log_levels['ERROR']
+        
+        # 提取模块日志级别 - 不使用默认值
+        if 'default' not in log_levels:
+            raise ValueError("日志级别配置中未找到'default'项")
+        if 'adb' not in log_levels:
+            raise ValueError("日志级别配置中未找到'adb'项")
+        if 'screenshot' not in log_levels:
+            raise ValueError("日志级别配置中未找到'screenshot'项")
+        if 'ocr' not in log_levels:
+            raise ValueError("日志级别配置中未找到'ocr'项")
+        
+        DEFAULT_LOG_LEVELS = {
+            "default": log_levels['default'],
+            "adb": log_levels['adb'],
+            "screenshot": log_levels['screenshot'],
+            "ocr": log_levels['ocr']
+        }
+        
+        return DEBUG, INFO, WARNING, ERROR, DEFAULT_LOG_LEVELS
 
-# 定义日志级别常量
-DEBUG = 10
-INFO = 20
-WARNING = 30
-ERROR = 40
-
-# 默认日志级别
-DEFAULT_LOG_LEVELS = {
-    "default": "INFO",
-    "adb": "INFO",
-    "screenshot": "INFO", 
-    "ocr": "DEBUG"
-}
+# 加载日志级别常量
+DEBUG, INFO, WARNING, ERROR, DEFAULT_LOG_LEVELS = load_log_levels()
 
 class ConfigManager:
     """配置管理器类"""
@@ -40,58 +70,29 @@ class ConfigManager:
         self.config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
-        """从YAML文件加载配置"""
-        try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            print(f"配置加载错误: {str(e)}")
-            # 返回默认配置
-            return {
-                "app": {"name": "GameTheoryAI"},
-                "adb": {
-                    "path": "/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb",
-                    "screenshot": {
-                        "local_temp_dir": "/tmp/screenshots",
-                        "remote_path": "/sdcard/screenshot.png",
-                        "date_format": '%Y%m%d',
-                        "interval": 1,
-                        "clear_target_dir": False
-                    }
-                },
-                "environment": {
-                    "temp_dir": "/tmp",
-                    "log_dir": "logs"
-                },
-                "logging": {
-                    "level": "INFO",
-                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                }
-            }
+        """从YAML文件加载配置，如果加载失败则抛出异常"""
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            if not config:
+                raise ValueError(f"配置文件为空或格式不正确: {self.config_path}")
+            return config
     
     def get_config(self) -> Dict[str, Any]:
         """获取完整配置"""
         return self.config
     
-    def get(self, key_path: str, default: Any = None) -> Any:
-        """使用点分隔的路径获取配置值
-        
-        Args:
-            key_path: 点分隔的键路径，例如 "adb.screenshot.interval"
-            default: 如果键不存在，返回的默认值
-            
-        Returns:
-            找到的配置值或默认值
-        """
+    def get(self, key_path: str) -> Any:
+        """使用点分隔的路径获取配置值，如果不存在则抛出异常"""
         keys = key_path.split('.')
         value = self.config
         
         # 尝试按照路径访问嵌套的字典
-        for k in keys:
+        for i, k in enumerate(keys):
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
-                return default
+                current_path = '.'.join(keys[:i+1])
+                raise KeyError(f"配置项不存在: '{current_path}'")
                 
         return value
     
@@ -136,8 +137,20 @@ class LogManager:
     """日志管理器类"""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.log_dir = self.config.get('log_dir', 'logs')
+        """
+        初始化日志管理器
+        
+        Args:
+            config: 日志配置，不能为None
+            
+        Raises:
+            ValueError: 当config为None时
+        """
+        if config is None:
+            raise ValueError("LogManager初始化错误: 配置不能为None")
+        
+        self.config = config
+        self.log_dir = config['log_dir']  # 不提供默认值
         os.makedirs(self.log_dir, exist_ok=True)
         
         # 设置根日志记录器
@@ -258,14 +271,7 @@ class ADBHelper:
             return False
     
     def take_screenshot(self, local_dir: Optional[str] = None) -> Optional[str]:
-        """获取屏幕截图
-        
-        Args:
-            local_dir: 本地保存目录，None表示使用默认路径
-            
-        Returns:
-            str: 截图保存路径，失败时返回None
-        """
+        """获取屏幕截图"""
         if not self.check_device_connection():
             self.logger.warning("无法截图: 设备未连接")
             return None
@@ -322,14 +328,7 @@ class ADBHelper:
             return None
     
     def execute_command(self, command: List[str]) -> Tuple[int, str, str]:
-        """执行ADB命令
-        
-        Args:
-            command: ADB命令参数列表，不包含adb路径
-            
-        Returns:
-            Tuple[int, str, str]: 返回码、标准输出、标准错误
-        """
+        """执行ADB命令"""
         try:
             cmd = [self.adb_path] + command
             self.logger.debug(f"执行命令: {' '.join(cmd)}")
@@ -356,7 +355,6 @@ class ADBHelper:
 
 class ScreenshotManager:
     """截图管理器"""
-    
     def __init__(self, config_manager: ConfigManager):
         self.logger = get_logger("screenshot.manager")  # 使用模块化日志名称
         self.config_manager = config_manager
@@ -409,18 +407,18 @@ class ScreenshotManager:
         stop_event = threading.Event()
         
         # 确定保存目录
-        temp_dir = self.config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+        temp_dir = self.config_manager.get('environment.temp_dir')
         target_dir = save_dir or os.path.join(temp_dir, 'screenshots')
         
         # 检查是否需要清空目标目录
-        clear_target_dir = self.config_manager.get('adb.screenshot.clear_target_dir', False)
+        clear_target_dir = self.config_manager.get('adb.screenshot.clear_target_dir')
         self.logger.info(f"清空目标目录配置: {clear_target_dir}")
         
         if clear_target_dir:
             self.logger.info(f"准备清空目标目录: {target_dir}")
             try:
                 # 获取日期目录路径
-                date_str = datetime.now().strftime(self.config_manager.get('adb.screenshot.date_format', '%Y%m%d'))
+                date_str = datetime.now().strftime(self.config_manager.get('adb.screenshot.date_format'))
                 date_dir = os.path.join(target_dir, date_str)
                 
                 # 创建日期目录（如果不存在）
@@ -468,7 +466,7 @@ class ScreenshotManager:
                             break
                         continue
                     
-                    current_time = time.sleep()
+                    current_time = time.time()
                     # 动态调整等待时间，确保截图间隔准确
                     if current_time - last_time < interval:
                         # 使用短间隔等待以提高响应性
@@ -572,132 +570,28 @@ class ScreenshotManager:
                     "task_count": len(self._screenshot_tasks),
                     "tasks": tasks
                 }
-    
-    def start_multi_screenshot_task(self, tasks: List[Dict[str, Any]]) -> Dict[str, str]:
-        """启动多个截图任务，返回任务ID字典
-        
-        Args:
-            tasks: 任务列表，每个任务是一个字典，包含：
-                  - interval: 截图间隔（秒）
-                  - max_count: 最大截图数（可选）
-                  - save_dir: 保存目录（可选）
-                  - name: 任务名称（可选）
-        
-        Returns:
-            Dict[str, str]: 任务名称到任务ID的映射
-        """
-        task_ids = {}
-        
-        self.logger.info(f"准备启动{len(tasks)}个截图任务")
-        
-        # 首先清空目标目录（如果需要）
-        clear_target_dir = self.config_manager.get('adb.screenshot.clear_target_dir', False)
-        if clear_target_dir:
-            # 获取日期目录路径
-            date_str = datetime.now().strftime(self.config_manager.get('adb.screenshot.date_format', '%Y%m%d'))
-            save_dirs = set()
-            
-            # 收集所有不同的保存目录
-            for task in tasks:
-                save_dir = task.get('save_dir') or self.config_manager.get('adb.screenshot.local_temp_dir')
-                save_dirs.add(save_dir)
-            
-            # 清空每个目录
-            for save_dir in save_dirs:
-                self.logger.info(f"准备清空目标目录: {save_dir}")
-                try:
-                    date_dir = os.path.join(save_dir, date_str)
-                    os.makedirs(date_dir, exist_ok=True)
-                    
-                    # 清空日期目录中的文件
-                    file_count = 0
-                    for file in os.listdir(date_dir):
-                        file_path = os.path.join(date_dir, file)
-                        if os.path.isfile(file_path):
-                            try:
-                                os.remove(file_path)
-                                file_count += 1
-                            except Exception as e:
-                                self.logger.warning(f"删除文件失败: {file_path}, 错误: {e}")
-                    
-                    self.logger.info(f"已清空日期目录: {date_dir}, 共删除{file_count}个文件")
-                except Exception as e:
-                    self.logger.error(f"清空目标目录时出错: {str(e)}")
-        
-        # 依次启动每个任务
-        for i, task in enumerate(tasks):
-            interval = task.get('interval', 5)
-            max_count = task.get('max_count', None)
-            save_dir = task.get('save_dir', None)
-            name = task.get('name', f"任务{i+1}")
-            
-            # 启动任务并保存任务ID
-            task_id = self.start_screenshot_task(
-                interval=interval,
-                max_count=max_count,
-                save_dir=save_dir
-            )
-            
-            task_ids[name] = task_id
-            self.logger.info(f"已启动截图任务: {name} (ID: {task_id}), 间隔: {interval}秒, 最大数量: {max_count or '无限'}")
-            
-            # 添加短暂延迟，防止任务同时启动
-            time.sleep(0.2)
-        
-        return task_ids
-
-def run_project(config: Dict[str, Any]) -> None:
-    """运行项目"""
-    logger = get_logger(__name__)
-    logger.info("启动项目")
-    
-    try:
-        # 初始化截图管理器
-        screenshot_manager = ScreenshotManager(ConfigManager(config))
-        
-        # 运行一次截图
-        screenshot_path = screenshot_manager.take_screenshot()
-        if screenshot_path:
-            logger.info(f"初始截图已保存: {screenshot_path}")
-        
-        # 启动定时截图任务，从配置读取间隔时间
-        interval = config.get("adb", {}).get("screenshot", {}).get("interval", 1)
-        task_id = screenshot_manager.start_screenshot_task(interval=interval)
-        logger.info(f"截图任务已启动: {task_id}, 间隔: {interval}秒")
-        
-        # 等待用户中断
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("收到中断信号，正在停止...")
-        finally:
-            # 停止所有任务
-            screenshot_manager.stop_all_tasks()
-            logger.info("项目已停止")
-    
-    except Exception as e:
-        logger.error(f"项目运行出错: {str(e)}")
-        
 
 # 创建全局实例
-try:
-    config_manager = ConfigManager("config/app_config.yaml")
-    log_manager = LogManager()  # 使用新的日志管理器
-except Exception as e:
-    print(f"初始化配置或日志失败: {str(e)}")
-    sys.exit(1)
+config_manager = ConfigManager("config/app_config.yaml")
+log_config = {
+    'log_dir': config_manager.get('environment.log_dir')
+}
+log_manager = LogManager(log_config)
 
 # 获取预配置的日志记录器
 def get_logger(name: str) -> logging.Logger:
     """获取预配置的日志记录器"""
     return log_manager.get_logger(name)
 
+logger = get_logger(__name__)
+
 def main():
     """主函数"""
+    screenshot_manager = None
+    
     try:
         # 初始化服务
-        config_manager, screenshot_manager, game_ocr = initialize_services()
+        config_manager, screenshot_manager = initialize_services()
         
         # 创建菜单项
         menu_items = [
@@ -705,12 +599,11 @@ def main():
             {'name': '启动ADB服务', 'handler': lambda: handle_adb_server_start(config_manager, screenshot_manager)},
             {'name': '执行单次截图', 'handler': lambda: handle_single_screenshot(screenshot_manager)},
             {'name': '启动定时截图任务', 'handler': lambda: handle_scheduled_screenshot(config_manager, screenshot_manager)},
-            {'name': '单张OCR识别', 'handler': lambda: handle_ocr_test(game_ocr, config_manager)},
             {'name': '打印当前配置', 'handler': lambda: handle_show_config(config_manager)}
         ]
         
         # 获取默认任务配置
-        default_task = config_manager.get('app.default_task', 0)
+        default_task = config_manager.get('app.default_task')
         
         # 如果配置了默认任务且有效，直接执行
         if default_task and 1 <= default_task <= len(menu_items):
@@ -727,8 +620,6 @@ def main():
                 elif default_task == 4:
                     handle_scheduled_screenshot(config_manager, screenshot_manager)
                 elif default_task == 5:
-                    handle_ocr_test(game_ocr, config_manager)
-                elif default_task == 6:
                     handle_show_config(config_manager)
             except Exception as e:
                 logger = get_logger(__name__)
@@ -773,28 +664,13 @@ def main():
 def initialize_services():
     """初始化配置和服务实例"""
     try:
-        config_manager = ConfigManager("config/app_config.yaml")
+        # 使用全局配置管理器
+        global config_manager
         screenshot_manager = ScreenshotManager(config_manager)
-        game_ocr = GameOCR("config/app_config.yaml")
-        return config_manager, screenshot_manager, game_ocr
+        return config_manager, screenshot_manager
     except Exception as e:
         logger.error(f"服务初始化失败: {str(e)}")
         sys.exit(1)
-
-def display_main_menu() -> str:
-    """显示主菜单并获取用户输入"""
-    print("\n==== 游戏辅助工具 ====")
-    menu_items = [
-        "1. 检查设备连接状态",
-        "2. 启动ADB服务",
-        "3. 执行单次截图",
-        "4. 启动定时截图任务",
-        "5. 单张OCR识别",
-        "6. 打印当前配置"
-    ]
-    print("\n".join(menu_items))
-    print("====================")
-    return input("请选择功能 (输入q退出): ").strip()
 
 # 各功能处理函数
 def handle_single_screenshot(screenshot_manager):
@@ -804,10 +680,7 @@ def handle_single_screenshot(screenshot_manager):
         return
     
     print("正在执行截图...")
-    if path := screenshot_manager.take_screenshot():
-        print(f"截图已保存至: {path}")
-    else:
-        print("截图失败，请检查设备连接和ADB配置")
+    screenshot_manager.take_screenshot()
 
 def handle_scheduled_screenshot(config_manager, screenshot_manager):
     """处理定时截图任务"""
@@ -815,7 +688,7 @@ def handle_scheduled_screenshot(config_manager, screenshot_manager):
         print("无法启动截图任务: 没有检测到已连接的设备")
         return
     
-    interval = config_manager.get('adb.screenshot.interval', 1)
+    interval = config_manager.get('adb.screenshot.interval')
     print(f"启动截图任务，间隔: {interval}秒...")
     
     if (task_id := screenshot_manager.start_screenshot_task(interval=interval)) == "ERROR_NO_DEVICE":
@@ -853,8 +726,7 @@ def handle_adb_server_start(config_manager, screenshot_manager):
     try:
         adb_path = config_manager.get_config()["adb"]["path"]
         start_cmd = [adb_path, 'start-server']
-        logger.info(f"执行命令: {' '.join(start_cmd)}")
-        
+
         result = subprocess.run(
             start_cmd,
             stdout=subprocess.PIPE,
@@ -864,7 +736,6 @@ def handle_adb_server_start(config_manager, screenshot_manager):
         
         if result.returncode == 0:
             print("ADB服务启动成功")
-            logger.info("ADB服务启动成功")
             # 重新检查设备连接
             time.sleep(1)  # 等待服务完全启动
             if screenshot_manager.adb_helper.check_device_connection():
@@ -883,7 +754,7 @@ def handle_show_config(config_manager):
     """处理显示当前配置"""
     print("\n当前配置:")
     print(f"ADB路径: {config_manager.get('adb.path')}")
-    temp_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+    temp_dir = config_manager.get('environment.temp_dir')
     screenshot_dir = os.path.join(temp_dir, 'screenshots')
     print(f"临时文件目录: {temp_dir}")
     print(f"截图保存目录: {screenshot_dir}")
@@ -892,30 +763,23 @@ def handle_show_config(config_manager):
     print(f"日期格式: {config_manager.get('adb.screenshot.date_format')}")
 
 def handle_keyboard_interrupt(screenshot_manager):
-    """处理键盘中断"""
     print("\n收到中断信号，正在停止...")
     if screenshot_manager:
         screenshot_manager.stop_all_tasks()
     print("程序已退出")
     sys.exit(0)
 
-def handle_unexpected_error(e):
-    """处理意外错误"""
-    logger.error(f"执行任务异常: {str(e)}")
-    print(f"发生未预期错误: {str(e)}\n程序已退出")
 
 if __name__ == "__main__":
-    # 初始化日志
-    log_manager = LogManager()
-    logger = log_manager.get_logger(__name__)
-    
-    # 初始化配置
     try:
         config_manager = ConfigManager("config/app_config.yaml")
         config = config_manager.get_config()
+        log_config = {
+            'log_dir': config_manager.get('environment.log_dir')
+        }
+        log_manager = LogManager(log_config)
+        logger = get_logger(__name__)
     except Exception as e:
-        logger.error(f"配置加载失败: {str(e)}")
+        print(f"配置加载失败: {str(e)}")
         sys.exit(1)
-    
-    # 调用主函数
     main() 
