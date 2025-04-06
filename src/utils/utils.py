@@ -19,6 +19,26 @@ try:
 except ImportError:
     PNGQUANT_AVAILABLE = False
 
+# 在LogManager类上方添加以下常量定义
+LOG_CONFIG = {
+    "base_format": "%(asctime)s [%(levelname).4s] %(name)s:%(lineno)d - %(message)s",
+    "file_format": "%(asctime)s [%(levelname).4s] %(name)s:%(lineno)d - %(message)s",
+    "date_format": "%Y-%m-%d %H:%M:%S",
+    "log_levels": {
+        "root": "INFO",
+        "utils": "DEBUG",
+        "adb": "INFO",
+        "ocr": "DEBUG"
+    },
+    "log_file": {
+        "enabled": True,
+        "path": "logs/app.log",
+        "max_size": 10,  # MB
+        "backup_count": 7,
+        "encoding": "utf-8"
+    }
+}
+
 class ConfigManager:
     """配置管理器"""
     
@@ -88,34 +108,86 @@ class ConfigManager:
         return True
 
 class LogManager:
-    """日志管理器"""
+    """增强版日志管理器"""
     
-    def __init__(self, config_file=None):
-        self.log_level = logging.INFO
-        self.log_format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        self.log_date_format = '%Y-%m-%d %H:%M:%S'
+    def __init__(self, config_manager=None):
+        self.config = LOG_CONFIG  # 默认使用内置配置
+        self._configure_logging()
         
-        # 设置日志
-        self._setup_logging()
+    def _configure_logging(self):
+        """配置日志系统"""
+        # 创建根日志器
+        self.root_logger = logging.getLogger()
+        self.root_logger.setLevel(self.config["log_levels"]["root"])
         
-    def _setup_logging(self):
-        """设置日志系统"""
-        # 配置根日志器
-        logging.basicConfig(
-            level=self.log_level,
-            format=self.log_format,
-            datefmt=self.log_date_format
+        # 清除已有处理器
+        if self.root_logger.handlers:
+            for handler in self.root_logger.handlers[:]:
+                self.root_logger.removeHandler(handler)
+        
+        # 控制台处理器
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter(
+            fmt=self.config["base_format"],
+            datefmt=self.config["date_format"]
         )
+        console_handler.setFormatter(console_formatter)
+        self.root_logger.addHandler(console_handler)
         
+        # 文件处理器（如果启用）
+        if self.config["log_file"]["enabled"]:
+            self._setup_file_handler()
+        
+        # 设置子模块日志级别
+        self._set_module_levels()
+    
+    def _setup_file_handler(self):
+        """配置文件日志处理器"""
+        try:
+            log_path = self.config["log_file"]["path"]
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            
+            file_handler = logging.handlers.RotatingFileHandler(
+                filename=log_path,
+                maxBytes=self.config["log_file"]["max_size"] * 1024 * 1024,
+                backupCount=self.config["log_file"]["backup_count"],
+                encoding=self.config["log_file"]["encoding"]
+            )
+            
+            file_formatter = logging.Formatter(
+                fmt=self.config["file_format"],
+                datefmt=self.config["date_format"]
+            )
+            file_handler.setFormatter(file_formatter)
+            self.root_logger.addHandler(file_handler)
+            
+        except Exception as e:
+            print(f"初始化文件日志失败: {str(e)}")
+            raise
+    
+    def _set_module_levels(self):
+        """设置模块级日志级别"""
+        for module, level in self.config["log_levels"].items():
+            if module == "root":
+                continue
+            logger = logging.getLogger(module)
+            logger.setLevel(level)
+    
     def get_logger(self, name):
-        """获取日志记录器"""
-        return logging.getLogger(name)
+        """获取预配置的日志记录器"""
+        logger = logging.getLogger(name)
+        
+        # 添加NullHandler防止无处理器警告
+        if not logger.handlers:
+            logger.addHandler(logging.NullHandler())
+            
+        return logger
 
 class ADBHelper:
     """ADB工具辅助类"""
     
     def __init__(self, adb_path):
-        self.logger = log_manager.get_logger(__name__)
+        self.logger = get_logger("adb.helper")  # 使用模块化日志名称
         self.adb_path = adb_path
         self._screenshot_counter = 0
         self._device_connected = False
@@ -145,8 +217,8 @@ class ADBHelper:
         Returns:
             bool: 设备是否已连接
         """
+        self.logger.debug("开始检查设备连接状态...")
         try:
-            self.logger.info("开始检查设备连接状态...")
             command = [self.adb_path, 'devices']
             command_str = ' '.join(command)
             self.logger.debug(f"执行检测命令: {command_str}")
@@ -193,8 +265,11 @@ class ADBHelper:
                 print(f"  {self.adb_path} devices")
                 
                 return False
+        except subprocess.TimeoutExpired:
+            self.logger.exception("ADB设备检测超时")
+            return False
         except Exception as e:
-            self.logger.error(f"检查设备连接失败: {str(e)}")
+            self.logger.error("设备检测发生未预期错误", exc_info=True)
             self._device_connected = False
             print(f"设备连接检测失败: {str(e)}")
             print("\n请尝试手动在终端执行以下命令重启ADB服务:")
@@ -307,7 +382,7 @@ class GameOCR:
     """游戏OCR工具类"""
     
     def __init__(self, config_path: Union[str, Path]):
-        self.logger = log_manager.get_logger(__name__)
+        self.logger = get_logger("ocr.core")  # 使用模块化日志名称
         
         if isinstance(config_path, str):
             config_path = Path(config_path)
@@ -381,6 +456,7 @@ class GameOCR:
     
     def recognize_image(self, image_path: str) -> Dict[str, Any]:
         """识别游戏截图"""
+        self.logger.info(f"开始识别图片: {image_path}")
         try:
             # 读取图片
             image = cv2.imread(image_path)
@@ -405,13 +481,14 @@ class GameOCR:
                     'result': text.strip()
                 })
             
+            self.logger.debug(f"识别到{len(elements)}个元素")
             return {
                 'success': True,
                 'elements': results
             }
             
         except Exception as e:
-            self.logger.error(f"图片识别失败: {str(e)}")
+            self.logger.error(f"图片识别失败: {str(e)}", exc_info=True)
             return {
                 'success': False,
                 'error': str(e)
@@ -490,7 +567,7 @@ class ScreenshotManager:
     """截图管理器"""
     
     def __init__(self, config_manager: ConfigManager):
-        self.logger = log_manager.get_logger(__name__)
+        self.logger = get_logger("screenshot.manager")  # 使用模块化日志名称
         self.config_manager = config_manager
         self.adb_helper = ADBHelper(config_manager.get_config()["adb"]["path"])
         self._screenshot_tasks = {}
@@ -500,6 +577,7 @@ class ScreenshotManager:
     
     def take_screenshot(self, save_dir: Optional[str] = None) -> Optional[str]:
         """获取单张截图"""
+        self.logger.debug("尝试获取截图...")
         try:
             # 控制截图速率，避免过度截图
             current_time = time.time()
@@ -520,11 +598,11 @@ class ScreenshotManager:
             if path:
                 self.logger.info(f"截图已保存: {path}")
             else:
-                self.logger.error("截图失败，请检查设备连接")
+                self.logger.warning("截图失败，请检查设备连接")
                 print("截图失败，请检查设备连接")
             return path
         except Exception as e:
-            self.logger.error(f"截图失败: {str(e)}")
+            self.logger.error("截图操作异常", exc_info=True)
             return None
     
     def start_screenshot_task(self, interval: int = 5, max_count: Optional[int] = None, 
@@ -599,7 +677,7 @@ class ScreenshotManager:
                             break
                         continue
                     
-                    current_time = time.time()
+                    current_time = time.sleep()
                     # 动态调整等待时间，确保截图间隔准确
                     if current_time - last_time < interval:
                         # 使用短间隔等待以提高响应性
@@ -779,7 +857,7 @@ class ScreenshotManager:
 
 def run_project(config: Dict[str, Any]) -> None:
     """运行项目"""
-    logger = log_manager.get_logger(__name__)
+    logger = get_logger(__name__)
     logger.info("启动项目")
     
     try:
@@ -814,196 +892,400 @@ def run_project(config: Dict[str, Any]) -> None:
 # 创建全局实例
 try:
     config_manager = ConfigManager("config/app_config.yaml")
-    log_manager = LogManager()
+    log_manager = LogManager()  # 使用新的日志管理器
 except Exception as e:
     print(f"初始化配置或日志失败: {str(e)}")
-    # 创建默认实例
-    config_manager = ConfigManager()
-    log_manager = LogManager()
+    sys.exit(1)
 
-# 导出常用函数
-def get_config(key=None, default=None):
-    """获取配置值"""
-    return config_manager.get(key, default)
-
-def set_config(key, value):
-    """设置配置值"""
-    return config_manager.set(key, value)
-
-def get_logger(name):
-    """获取日志记录器"""
+# 修改全局get_logger函数
+def get_logger(name: str) -> logging.Logger:
+    """获取预配置的日志记录器"""
     return log_manager.get_logger(name)
 
 def main():
-    """主函数"""
-    # 配置和实例化工具类
+    """主函数（优化版）"""
+    config_manager, screenshot_manager, game_ocr = initialize_services()
+    
+    while True:
+        try:
+            choice = display_main_menu()
+            
+            if choice.lower() in ('q', 'quit'):
+                print("\n正在退出程序...")
+                sys.exit(0)
+                
+            if choice == "1":
+                handle_device_check(screenshot_manager)
+            elif choice == "2":
+                handle_adb_server_start(config_manager, screenshot_manager)
+            elif choice == "3":
+                handle_single_screenshot(screenshot_manager)
+            elif choice == "4":
+                handle_scheduled_screenshot(config_manager, screenshot_manager)
+            elif choice == "5":
+                handle_ocr_test(game_ocr, config_manager)
+            elif choice == "6":
+                handle_show_config(config_manager)
+            elif choice == "7":
+                handle_batch_ocr(game_ocr, config_manager)
+            else:
+                print("无效的输入，请输入1-7之间的数字")
+                
+        except KeyboardInterrupt:
+            handle_keyboard_interrupt(screenshot_manager)
+            break
+        except Exception as e:
+            handle_unexpected_error(e)
+            break
+
+# 以下是拆分出的子函数 --------------------------------------------
+
+def initialize_services():
+    """初始化配置和服务实例"""
     try:
         config_manager = ConfigManager("config/app_config.yaml")
-        config = config_manager.get_config()
+        screenshot_manager = ScreenshotManager(config_manager)
+        game_ocr = GameOCR("config/app_config.yaml")
+        return config_manager, screenshot_manager, game_ocr
     except Exception as e:
-        logger.error(f"配置加载失败: {str(e)}")
+        logger.error(f"服务初始化失败: {str(e)}")
         sys.exit(1)
+
+def display_main_menu() -> str:
+    """显示主菜单并获取用户输入"""
+    print("\n==== 游戏辅助工具 ====")
+    menu_items = [
+        "1. 检查设备连接状态",
+        "2. 启动ADB服务",
+        "3. 执行单次截图",
+        "4. 启动定时截图任务",
+        "5. 单张OCR识别",
+        "6. 打印当前配置",
+        "7. 批量OCR识别"
+    ]
+    print("\n".join(menu_items))
+    print("====================")
+    return input("请选择功能 (输入q退出): ").strip()
+
+# 各功能处理函数
+def handle_single_screenshot(screenshot_manager):
+    """处理单次截图"""
+    if not screenshot_manager.adb_helper.check_device_connection():
+        print("无法执行截图: 没有检测到已连接的设备")
+        return
     
-    screenshot_manager = ScreenshotManager(config_manager)
+    print("正在执行截图...")
+    if path := screenshot_manager.take_screenshot():
+        print(f"截图已保存至: {path}")
+    else:
+        print("截图失败，请检查设备连接和ADB配置")
+
+def handle_scheduled_screenshot(config_manager, screenshot_manager):
+    """处理定时截图任务"""
+    if not screenshot_manager.adb_helper.check_device_connection():
+        print("无法启动截图任务: 没有检测到已连接的设备")
+        return
     
-    # 验证ADB工具是否可用
+    interval = config_manager.get('adb.screenshot.interval', 1)
+    print(f"启动截图任务，间隔: {interval}秒...")
+    
+    if (task_id := screenshot_manager.start_screenshot_task(interval=interval)) == "ERROR_NO_DEVICE":
+        print("截图任务启动失败: 设备未连接")
+        return
+    
+    print(f"截图任务已启动，任务ID: {task_id}\n按Ctrl+C停止...")
+    monitor_screenshot_task(screenshot_manager)
+
+def monitor_screenshot_task(screenshot_manager):
+    """监控截图任务状态"""
     try:
-        logger.info("开始验证ADB工具...")
+        while True:
+            if not screenshot_manager.adb_helper.check_device_connection():
+                print("警告: 设备连接已断开，等待重新连接...")
+            time.sleep(3)
+    except KeyboardInterrupt:
+        print("\n收到中断信号，正在停止...")
+    finally:
+        screenshot_manager.stop_all_tasks()
+        print("任务已停止")
+
+def handle_device_check(screenshot_manager):
+    """处理设备检查"""
+    print("开始检查设备连接状态...")
+    if screenshot_manager.adb_helper.check_device_connection():
+        print("设备已连接，可以开始截图任务")
+    else:
+        print("设备未连接，请连接设备后重试")
+        print("提示: 请确保USB调试已开启，并且已授权此电脑连接")
+
+def handle_adb_server_start(config_manager, screenshot_manager):
+    """处理启动ADB服务"""
+    print("正在启动ADB服务...")
+    try:
         adb_path = config_manager.get_config()["adb"]["path"]
-        logger.info(f"ADB工具路径: {adb_path}")
+        start_cmd = [adb_path, 'start-server']
+        logger.info(f"执行命令: {' '.join(start_cmd)}")
         
         result = subprocess.run(
-            [adb_path, 'version'], 
-            stdout=subprocess.PIPE, 
+            start_cmd,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=5
         )
         
         if result.returncode == 0:
-            version_info = result.stdout.decode('utf-8').strip()
-            logger.info(f"ADB工具验证成功: {version_info}")
-            print(f"ADB工具验证成功")
-        else:
-            error_msg = result.stderr.decode('utf-8')
-            logger.error(f"ADB工具验证失败: {error_msg}")
-            print(f"ADB工具验证失败: {error_msg}")
-            return
-    except subprocess.TimeoutExpired:
-        logger.error("ADB工具验证超时")
-        print("ADB工具验证超时，请检查ADB服务是否响应")
-        return
-    except Exception as e:
-        logger.error(f"ADB工具验证异常: {str(e)}")
-        print(f"ADB工具验证异常: {str(e)}")
-        return
-    
-    # 检查设备连接
-    logger.info("开始检查设备连接状态...")
-    if not screenshot_manager.adb_helper.check_device_connection():
-        logger.warning("首次检测未发现设备，请确保设备已正确连接并启用USB调试")
-    
-    # 显示菜单
-    print("\n==== 游戏辅助工具 ====")
-    print("1. 执行单次截图")
-    print("2. 启动定时截图任务 (按Ctrl+C停止)")
-    print("3. 检查设备连接状态")
-    print("4. 启动ADB服务")
-    print("5. 打印当前配置")
-    print("====================\n")
-    
-    try:
-        choice = input("请选择功能: ")
-        
-        if choice == "1":
-            # 单次截图
-            if not screenshot_manager.adb_helper.check_device_connection():
-                print("无法执行截图: 没有检测到已连接的设备")
-                return
-                
-            print("正在执行截图...")
-            path = screenshot_manager.take_screenshot()
-            if path:
-                print(f"截图已保存至: {path}")
-            else:
-                print("截图失败，请检查设备连接和ADB配置")
-        
-        elif choice == "2":
-            # 定时截图任务
-            if not screenshot_manager.adb_helper.check_device_connection():
-                print("无法启动截图任务: 没有检测到已连接的设备")
-                return
-            
-            # 从配置文件读取间隔时间    
-            interval = config_manager.get('adb.screenshot.interval', 1)
-            print(f"从配置文件读取截图间隔: {interval}秒")
-            print(f"启动截图任务，间隔: {interval}秒...")
-            task_id = screenshot_manager.start_screenshot_task(interval=interval)
-            
-            if task_id == "ERROR_NO_DEVICE":
-                print("截图任务启动失败: 设备未连接")
-                return
-                
-            print(f"截图任务已启动，任务ID: {task_id}")
-            print("按Ctrl+C停止...")
-            
-            try:
-                while True:
-                    # 定期检查设备连接状态
-                    if not screenshot_manager.adb_helper.check_device_connection():
-                        print("警告: 设备连接已断开，等待重新连接...")
-                    time.sleep(3)
-            except KeyboardInterrupt:
-                print("\n收到中断信号，正在停止...")
-            finally:
-                screenshot_manager.stop_all_tasks()
-                logger.info("所有截图任务已停止")
-                print("任务已停止")
-                
-        elif choice == "3":
-            # 检查设备连接
-            print("开始检查设备连接状态...")
+            print("ADB服务启动成功")
+            logger.info("ADB服务启动成功")
+            # 重新检查设备连接
+            time.sleep(1)  # 等待服务完全启动
             if screenshot_manager.adb_helper.check_device_connection():
                 print("设备已连接，可以开始截图任务")
             else:
                 print("设备未连接，请连接设备后重试")
-                print("提示: 请确保USB调试已开启，并且已授权此电脑连接")
-                
-        elif choice == "4":
-            # 启动ADB服务
-            print("正在启动ADB服务...")
-            try:
-                adb_path = config_manager.get_config()["adb"]["path"]
-                start_cmd = [adb_path, 'start-server']
-                logger.info(f"执行命令: {' '.join(start_cmd)}")
-                
-                result = subprocess.run(
-                    start_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=5
-                )
-                
-                if result.returncode == 0:
-                    print("ADB服务启动成功")
-                    logger.info("ADB服务启动成功")
-                    # 重新检查设备连接
-                    time.sleep(1)  # 等待服务完全启动
-                    if screenshot_manager.adb_helper.check_device_connection():
-                        print("设备已连接，可以开始截图任务")
-                    else:
-                        print("设备未连接，请连接设备后重试")
-                else:
-                    error_msg = result.stderr.decode('utf-8')
-                    print(f"ADB服务启动失败: {error_msg}")
-                    logger.error(f"ADB服务启动失败: {error_msg}")
-            except Exception as e:
-                print(f"启动ADB服务时出错: {str(e)}")
-                logger.error(f"启动ADB服务时出错: {str(e)}")
-                
-        elif choice == "5":
-            # 打印当前配置
-            print("\n当前配置:")
-            print(f"ADB路径: {config_manager.get('adb.path')}")
-            temp_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
-            screenshot_dir = os.path.join(temp_dir, 'screenshots')
-            print(f"临时文件目录: {temp_dir}")
-            print(f"截图保存目录: {screenshot_dir}")
-            print(f"单任务截图间隔: {config_manager.get('adb.screenshot.interval')}秒")
-            print(f"清空目标目录: {config_manager.get('adb.screenshot.clear_target_dir')}")
-            print(f"日期格式: {config_manager.get('adb.screenshot.date_format')}")
-                
         else:
-            print("无效的选择，请输入1-5之间的数字")
+            error_msg = result.stderr.decode('utf-8')
+            print(f"ADB服务启动失败: {error_msg}")
+            logger.error(f"ADB服务启动失败: {error_msg}")
+    except Exception as e:
+        print(f"启动ADB服务时出错: {str(e)}")
+        logger.error(f"启动ADB服务时出错: {str(e)}")
+
+def handle_show_config(config_manager):
+    """处理显示当前配置"""
+    print("\n当前配置:")
+    print(f"ADB路径: {config_manager.get('adb.path')}")
+    temp_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+    screenshot_dir = os.path.join(temp_dir, 'screenshots')
+    print(f"临时文件目录: {temp_dir}")
+    print(f"截图保存目录: {screenshot_dir}")
+    print(f"单任务截图间隔: {config_manager.get('adb.screenshot.interval')}秒")
+    print(f"清空目标目录: {config_manager.get('adb.screenshot.clear_target_dir')}")
+    print(f"日期格式: {config_manager.get('adb.screenshot.date_format')}")
+
+def handle_ocr_test(game_ocr, config_manager):
+    """OCR图片识别功能（自动获取最新截图）"""
+    logger = get_logger(__name__)
+    logger.info("启动OCR识别流程")
+
+    try:
+        # 从配置获取截图目录
+        temp_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+        screenshot_dir = os.path.join(temp_dir, 'screenshots')
+        
+        # 自动查找最新截图
+        latest_img = find_latest_screenshot(screenshot_dir)
+        
+        if not latest_img:
+            print("\n警告：未找到任何截图文件")
+            print("请先执行截图操作或手动指定图片路径")
+            return
+
+        # 执行识别
+        print(f"\n正在自动识别最新截图: {latest_img}")
+        start_time = time.time()
+        
+        result = game_ocr.recognize_image(latest_img)
+        
+        elapsed_time = time.time() - start_time
+        print(f"\n识别完成（耗时{elapsed_time:.2f}秒）")
+
+        # 输出结果
+        print(f"图片路径: {latest_img}")
+        if result['success']:
+            # 生成结果文件路径
+            txt_path = os.path.splitext(latest_img)[0] + ".txt"
+            
+            # 构建结果内容
+            content = [
+                f"图片路径: {latest_img}",
+                f"识别耗时: {elapsed_time:.2f}秒",
+                f"识别元素数量: {len(result['elements'])}",
+                "\n识别结果:"
+            ]
+            
+            for idx, element in enumerate(result['elements'], 1):
+                content.append(f"{idx}. 位置: {element['region']}")
+                content.append(f"   结果: {element['result']}")
+                content.append("")  # 空行分隔
+            
+            # 写入文件
+            try:
+                with open(txt_path, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(content))
+                print(f"\n识别结果已保存至: {txt_path}")
+                logger.info(f"OCR结果已保存到 {txt_path}")
+            except Exception as e:
+                print(f"\n警告：结果文件保存失败 - {str(e)}")
+                logger.error(f"结果文件保存失败: {str(e)}")
+        else:
+            print(f"识别失败: {result.get('error', '未知错误')}")
+
+    except Exception as e:
+        print(f"发生错误: {str(e)}")
+        logger.error(f"OCR识别异常: {str(e)}", exc_info=True)
+
+def find_latest_screenshot(base_dir: str) -> Optional[str]:
+    """查找最新截图文件"""
+    try:
+        # 按日期目录排序（格式：YYYYMMDD）
+        date_dirs = sorted(
+            [d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d)) and d.isdigit()],
+            reverse=True
+        )
+        
+        # 遍历所有日期目录
+        for date_dir in date_dirs:
+            dir_path = os.path.join(base_dir, date_dir)
+            # 按文件名排序（数字.png）
+            screenshots = sorted(
+                [f for f in os.listdir(dir_path) if f.lower().endswith('.png')],
+                key=lambda x: int(x.split('.')[0]),
+                reverse=True
+            )
+            
+            if screenshots:
+                return os.path.join(dir_path, screenshots[0])
+                
+        return None
+        
+    except Exception as e:
+        logger.error(f"查找截图失败: {str(e)}")
+        return None
+
+def handle_keyboard_interrupt(screenshot_manager):
+    """处理键盘中断"""
+    print("\n收到中断信号，正在停止...")
+    if screenshot_manager:
+        screenshot_manager.stop_all_tasks()
+    print("程序已退出")
+    sys.exit(0)
+
+def handle_unexpected_error(e):
+    """处理意外错误"""
+    logger.error(f"执行任务异常: {str(e)}")
+    print(f"发生未预期错误: {str(e)}\n程序已退出")
+
+def handle_batch_ocr(game_ocr, config_manager):
+    """批量OCR识别功能"""
+    logger = get_logger(__name__)
+    logger.info("启动批量OCR识别流程")
+    
+    try:
+        # 从配置获取基础目录
+        base_dir = config_manager.get('environment.temp_dir', '/Users/mac/ai/temp')
+        screenshot_dir = os.path.join(base_dir, 'screenshots')
+        
+        # 获取所有图片文件（按修改时间排序）
+        all_files = find_all_screenshots(screenshot_dir)
+        
+        if not all_files:
+            print("\n警告：未找到任何截图文件")
+            return
+
+        # 创建汇总文件
+        summary_path = os.path.join(base_dir, "ocr_summary.txt")
+        success_count = 0
+        fail_count = 0
+        
+        print(f"\n开始批量处理 {len(all_files)} 个文件...")
+        
+        with open(summary_path, 'w', encoding='utf-8') as summary_file:
+            summary_file.write(f"OCR识别汇总报告 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+            summary_file.write("="*50 + "\n\n")
+            
+            for idx, img_path in enumerate(all_files, 1):
+                try:
+                    print(f"\n[{idx}/{len(all_files)}] 正在处理: {img_path}")
+                    start_time = time.time()
+                    
+                    # 执行识别
+                    result = game_ocr.recognize_image(img_path)
+                    elapsed_time = time.time() - start_time
+                    
+                    # 构建结果内容
+                    log_lines = [
+                        f"文件: {img_path}",
+                        f"状态: {'成功' if result['success'] else '失败'}",
+                        f"耗时: {elapsed_time:.2f}秒",
+                    ]
+                    
+                    if result['success']:
+                        success_count += 1
+                        log_lines.append(f"识别元素数量: {len(result['elements'])}")
+                        # 保存独立结果文件
+                        save_single_result(img_path, result, elapsed_time)
+                    else:
+                        fail_count += 1
+                        log_lines.append(f"错误信息: {result.get('error', '未知错误')}")
+                    
+                    # 打印并记录日志
+                    current_log = "\n".join(log_lines)
+                    print(current_log)
+                    summary_file.write(current_log + "\n\n")
+                    
+                except Exception as e:
+                    fail_count += 1
+                    error_msg = f"处理异常: {str(e)}"
+                    print(error_msg)
+                    summary_file.write(f"文件: {img_path}\n状态: 异常失败\n错误信息: {error_msg}\n\n")
+                    logger.error(f"文件处理异常: {img_path} - {str(e)}", exc_info=True)
+                    continue
+
+        # 生成最终汇总
+        final_summary = (
+            f"\n处理完成！成功: {success_count} 个，失败: {fail_count} 个\n"
+            f"详细结果请查看: {summary_path}"
+        )
+        print(final_summary)
+        logger.info(final_summary)
+
+    except Exception as e:
+        print(f"批量处理发生错误: {str(e)}")
+        logger.error(f"批量OCR异常: {str(e)}", exc_info=True)
+
+def find_all_screenshots(base_dir: str) -> List[str]:
+    """查找所有截图文件（按修改时间排序）"""
+    try:
+        all_files = []
+        
+        # 遍历所有子目录
+        for root, dirs, files in os.walk(base_dir):
+            # 按修改时间排序目录（最新修改的优先）
+            dirs.sort(key=lambda d: os.path.getmtime(os.path.join(root, d)), reverse=True)
+            
+            # 收集图片文件（支持PNG/JPG）
+            for file in sorted(files, key=lambda f: os.path.getmtime(os.path.join(root, f)), reverse=True):
+                if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    full_path = os.path.join(root, file)
+                    all_files.append(full_path)
+                    
+        return all_files
+        
+    except Exception as e:
+        logger.error(f"查找截图文件失败: {str(e)}")
+        return []
+
+def save_single_result(img_path: str, result: dict, elapsed_time: float):
+    """保存单个文件结果"""
+    try:
+        txt_path = os.path.splitext(img_path)[0] + ".txt"
+        content = [
+            f"图片路径: {img_path}",
+            f"识别耗时: {elapsed_time:.2f}秒",
+            f"识别元素数量: {len(result['elements'])}",
+            "\n识别结果:"
+        ]
+        
+        for idx, element in enumerate(result['elements'], 1):
+            content.append(f"{idx}. 位置: {element['region']}")
+            content.append(f"   结果: {element['result']}")
+            content.append("")
+            
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(content))
             
     except Exception as e:
-        logger.error(f"执行任务异常: {str(e)}")
-        print(f"执行任务异常: {str(e)}")
-        
-    except KeyboardInterrupt:
-        print("\n程序已中断")
-        
-    finally:
-        print("程序已退出")
+        logger.error(f"结果文件保存失败: {str(e)}")
 
 if __name__ == "__main__":
     # 初始化日志
