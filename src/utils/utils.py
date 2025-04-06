@@ -906,6 +906,35 @@ def main():
     """主函数（优化版）"""
     config_manager, screenshot_manager, game_ocr = initialize_services()
     
+    # 获取默认任务配置
+    default_task = config_manager.get('app.default_task', 0)
+    
+    # 如果配置了默认任务且有效，直接执行
+    if default_task and 1 <= default_task <= 7:
+        logger = get_logger(__name__)
+        logger.info(f"执行默认任务: {default_task}")
+        
+        try:
+            if default_task == 1:
+                handle_device_check(screenshot_manager)
+            elif default_task == 2:
+                handle_adb_server_start(config_manager, screenshot_manager)
+            elif default_task == 3:
+                handle_single_screenshot(screenshot_manager)
+            elif default_task == 4:
+                handle_scheduled_screenshot(config_manager, screenshot_manager)
+            elif default_task == 5:
+                handle_ocr_test(game_ocr, config_manager)
+            elif default_task == 6:
+                handle_show_config(config_manager)
+            elif default_task == 7:
+                handle_batch_ocr(game_ocr, config_manager)
+        except Exception as e:
+            logger.error(f"默认任务执行失败: {str(e)}", exc_info=True)
+            print(f"\n默认任务执行失败: {str(e)}")
+            print("将显示主菜单...")
+    
+    # 进入主循环
     while True:
         try:
             choice = display_main_menu()
