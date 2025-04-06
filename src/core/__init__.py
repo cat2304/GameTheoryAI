@@ -6,8 +6,7 @@
 子模块
 -----
 - ai: AI决策逻辑
-  - decision: 决策算法
-  - learning: 学习算法
+  - ai_player: AI玩家实现
   - strategy: 策略实现
 - game: 游戏状态监控
   - game_monitor: 游戏状态监控
@@ -17,9 +16,7 @@
   - scheduler: 任务调度
   - executor: 任务执行
 - opencv: 图像处理
-  - capture: 图像捕获
-  - process: 图像处理
-  - detect: 目标检测
+  - opencv_processor: 图像处理器
 
 主要功能
 -------
@@ -47,26 +44,19 @@
 -------
 ```python
 from src.core.game.game_monitor import GameMonitor
-from src.core.ai.decision import AIDecision
-from src.core.task.scheduler import TaskScheduler
+from src.core.ai.ai_player import AIPlayer
 
 # 初始化游戏监控
 monitor = GameMonitor()
 
 # 初始化AI决策
-ai = AIDecision()
-
-# 初始化任务调度
-scheduler = TaskScheduler()
+ai = AIPlayer()
 
 # 获取游戏状态
 game_state = monitor.get_state()
 
 # 使用AI决策
 next_move = ai.decide(game_state)
-
-# 调度任务
-scheduler.schedule_task('process_state', game_state)
 ```
 
 注意事项
@@ -81,12 +71,10 @@ __version__ = '0.1.0'
 
 # 模块级导入
 from .game.game_monitor import GameMonitor
-from .ai.decision import AIDecision
-from .task.scheduler import TaskScheduler
+from .ai.ai_player import AIPlayer
 
 # 公共接口列表
 __all__ = [
     'GameMonitor',
-    'AIDecision',
-    'TaskScheduler'
+    'AIPlayer'
 ] 

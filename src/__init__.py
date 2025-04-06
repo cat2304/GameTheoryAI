@@ -36,7 +36,7 @@ src/
 使用示例
 -------
     from src.core.game.game_monitor import GameMonitor
-    from src.core.ai.decision import AIDecision
+    from src.core.ai.ai_player import AIPlayer
 
     # 初始化游戏监控
     monitor = GameMonitor()
@@ -45,7 +45,7 @@ src/
     game_state = monitor.get_state()
 
     # 使用AI决策
-    ai = AIDecision()
+    ai = AIPlayer()
     next_move = ai.decide(game_state)
 
 环境设置
@@ -84,10 +84,10 @@ __version__ = '1.0.0'
 
 # 模块级导入
 from .core.game.game_monitor import GameMonitor
-from .core.ai.decision import AIDecision
+from .core.ai.ai_player import AIPlayer
 
 # 公共接口列表
 __all__ = [
     'GameMonitor',
-    'AIDecision'
+    'AIPlayer'
 ] 

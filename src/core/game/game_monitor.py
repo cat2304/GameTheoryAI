@@ -27,6 +27,12 @@ class GameMonitor:
         """
         self.logger = logging.getLogger(__name__)
         
+        # 设置配置文件路径
+        if config_path is None:
+            config_path = Path("config/app_config.yaml")
+        elif isinstance(config_path, str):
+            config_path = Path(config_path)
+        
         # 设置截图目录
         if screenshot_dir:
             self.screenshot_dir = Path(screenshot_dir)
@@ -198,11 +204,48 @@ class GameMonitor:
                 'analysis': analysis_result
             }
             
-            self.logger.info(f"截图分析完成: {image_path}")
             return result
             
         except Exception as e:
-            self.logger.error(f"截图分析失败: {image_path}, 错误: {str(e)}")
+            self.logger.error(f"分析截图失败: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_state(self):
+        """获取当前游戏状态
+        
+        Returns:
+            dict: 游戏状态信息
+        """
+        try:
+            # 截取当前画面
+            screenshot_path = self.take_screenshot()
+            if not screenshot_path:
+                return {
+                    'success': False,
+                    'error': '截图失败'
+                }
+            
+            # 分析截图
+            analysis_result = self.analyze_screenshot(screenshot_path)
+            if not analysis_result['success']:
+                return analysis_result
+            
+            # 返回游戏状态
+            return {
+                'success': True,
+                'state': {
+                    'timestamp': datetime.now().isoformat(),
+                    'screenshot': screenshot_path,
+                    'analysis': analysis_result['analysis'],
+                    'elements': analysis_result['ocr_result']['elements']
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"获取游戏状态失败: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

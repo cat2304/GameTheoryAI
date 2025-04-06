@@ -3,10 +3,49 @@ AI玩家模块
 =========
 
 定义AI玩家相关的类和函数。
+
+主要功能
+-------
+1. 游戏状态管理
+   - 状态更新
+   - 状态评估
+   - 状态预测
+
+2. 决策制定
+   - 动作选择
+   - 策略应用
+   - 结果评估
+
+使用示例
+-------
+    from src.core.ai.ai_player import AIPlayer
+
+    # 创建AI玩家
+    player = AIPlayer(strategy='default')
+
+    # 更新游戏状态
+    player.update_state(game_state)
+
+    # 获取决策
+    action = player.decide_action()
+
+注意事项
+-------
+1. 确保游戏状态格式正确
+2. 选择合适的策略
+3. 注意性能优化
 """
+
+# 版本信息
+__version__ = '0.1.0'
 
 from typing import List, Dict, Optional
 from ..game.game_monitor import GameMonitor
+
+# 公共接口列表
+__all__ = [
+    'AIPlayer'
+]
 
 class AIPlayer:
     """AI玩家类

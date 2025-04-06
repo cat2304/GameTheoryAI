@@ -3,7 +3,50 @@ OCR任务管理模块
 ============
 
 提供OCR任务的管理功能，包括GUI控制界面和后台任务执行。
+
+子模块
+-----
+- ocr_task: OCR识别任务
+  - 图像预处理
+  - 文字识别
+  - 结果处理
+
+主要功能
+-------
+1. 任务调度
+   - 任务创建
+   - 任务优先级
+   - 任务队列
+   - 任务取消
+
+2. 任务执行
+   - 并行执行
+   - 错误处理
+   - 结果收集
+   - 状态监控
+
+使用示例
+-------
+    from src.core.task.ocr_task import OCRTask
+
+    # 创建OCR任务
+    task = OCRTask(image_path='screenshot.png')
+
+    # 执行任务
+    result = task.execute()
+
+    # 获取结果
+    text = result.get_text()
+
+注意事项
+-------
+1. 任务执行需要合理配置资源
+2. 注意任务优先级设置
+3. 及时处理任务异常
 """
+
+# 版本信息
+__version__ = '0.1.0'
 
 import os
 import sys
@@ -18,14 +61,42 @@ from pathlib import Path
 from threading import Thread, Event
 from queue import Queue
 
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.append(str(project_root))
+# 公共接口列表
+__all__ = [
+    'OCRTask'
+]
 
-from src.utils.config import ConfigManager
-from src.utils.logger import LogManager
-from src.utils.adb import ADBHelper
-from src.core.ocr.ocr_engine import OCREngine
+class OCRTask:
+    """OCR任务类，用于管理OCR识别任务"""
+    
+    def __init__(self, image_path: str):
+        """初始化OCR任务
+        
+        Args:
+            image_path: 图片路径
+        """
+        self.image_path = image_path
+        self.logger = logging.getLogger(__name__)
+        self.result = None
+        self.status = "pending"
+    
+    def execute(self):
+        """执行OCR任务"""
+        try:
+            self.status = "running"
+            # TODO: 实现OCR识别逻辑
+            self.status = "completed"
+            return self
+        except Exception as e:
+            self.status = "failed"
+            self.logger.error(f"OCR任务执行失败: {str(e)}")
+            raise
+    
+    def get_text(self):
+        """获取识别结果"""
+        if self.status != "completed":
+            raise RuntimeError("任务尚未完成")
+        return self.result
 
 class OCRTaskManager:
     """OCR任务管理器类"""
