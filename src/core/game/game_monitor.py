@@ -253,18 +253,7 @@ class GameMonitor:
             }
     
     def _analyze_game_state(self, elements):
-        """分析游戏状态
-        
-        Args:
-            elements: 识别到的游戏元素列表
-            
-        Returns:
-            dict: 分析结果，包含以下字段：
-                - state: 游戏状态（playing/ended）
-                - score: 当前分数
-                - tiles_in_hand: 手牌列表
-                - last_action: 最后动作
-        """
+        """{"功能":"分析游戏状态", "参数":{"elements":"识别到的游戏元素列表"}, "返回":"dict: 游戏状态分析结果，包含state、score、tiles_in_hand和last_action字段"}"""
         try:
             # 初始化状态
             state = {
@@ -314,14 +303,7 @@ class GameMonitor:
             }
     
     def _calculate_state_score(self, element_counts):
-        """计算状态评分
-        
-        Args:
-            element_counts: 元素计数字典
-            
-        Returns:
-            float: 状态评分
-        """
+        """{"功能":"计算状态评分", "参数":{"element_counts":"元素计数字典"}, "返回":"float: 状态评分"}"""
         score = 0
         
         for element, count in element_counts.items():
@@ -334,15 +316,7 @@ class GameMonitor:
         return score
     
     def _generate_suggestions(self, element_counts, score):
-        """生成决策建议
-        
-        Args:
-            element_counts: 元素计数字典
-            score: 状态评分
-            
-        Returns:
-            list: 建议列表
-        """
+        """{"功能":"生成决策建议", "参数":{"element_counts":"元素计数字典", "score":"状态评分"}, "返回":"list: 建议列表"}"""
         suggestions = []
         
         if score > 10:

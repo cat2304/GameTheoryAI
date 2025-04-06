@@ -48,15 +48,7 @@ class OpenCVAlgorithm:
             raise
     
     def find_game_elements(self, processed_img, original_img):
-        """查找游戏元素区域
-        
-        Args:
-            processed_img: 处理后的图像
-            original_img: 原始图像
-            
-        Returns:
-            List[Dict]: 检测到的游戏元素列表
-        """
+        """{"功能":"查找游戏元素区域", "参数":{"processed_img":"处理后的图像", "original_img":"原始图像"}, "返回":"List[Dict]: 检测到的游戏元素列表"}"""
         try:
             height, width = processed_img.shape[:2]
             
@@ -113,15 +105,7 @@ class OpenCVAlgorithm:
             return [], original_img.copy()
     
     def recognize_game_element(self, image, region):
-        """识别单个游戏元素
-        
-        Args:
-            image: 原始图像
-            region: 游戏元素区域 (x, y, w, h)
-            
-        Returns:
-            str: 识别结果
-        """
+        """{"功能":"识别单个游戏元素", "参数":{"image":"原始图像", "region":"游戏元素区域 (x,y,w,h)"}, "返回":"str: 识别结果"}"""
         try:
             x, y, w, h = region
             element_img = image[y:y+h, x:x+w]
@@ -157,16 +141,7 @@ class OpenCVAlgorithm:
             return "未知"
     
     def draw_visualization(self, image, elements, predictions):
-        """绘制可视化结果
-        
-        Args:
-            image: 原始图像
-            elements: 检测到的游戏元素
-            predictions: 识别结果
-            
-        Returns:
-            np.ndarray: 可视化后的图像
-        """
+        """{"功能":"绘制可视化结果", "参数":{"image":"原始图像", "elements":"检测到的游戏元素", "predictions":"识别结果"}, "返回":"np.ndarray: 可视化后的图像"}"""
         try:
             # 创建图像副本
             vis_img = image.copy()

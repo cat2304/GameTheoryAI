@@ -222,38 +222,9 @@ class GameOCR:
             raise FileNotFoundError(f"配置文件不存在: {config_path}")
             
         self.config = {
-            "preprocessing": {
-                "blur_kernel": (3, 3),     # 高斯模糊核大小
-                "threshold_min": 200,      # 二值化最小阈值
-                "threshold_max": 255,      # 二值化最大阈值
-                "canny_min": 30,           # 边缘检测最小阈值
-                "canny_max": 120,          # 边缘检测最大阈值
-                "dilate_kernel": (2, 2),   # 膨胀核大小
-                "dilate_iterations": 1,    # 膨胀次数
-                "debug_output": True       # 是否输出调试图片
-            },
-            "detection": {
-                "min_area": 3000,          # 最小面积
-                "max_area": 50000,         # 最大面积
-                "aspect_ratio_min": 0.6,   # 最小宽高比
-                "aspect_ratio_max": 1.5,   # 最大宽高比
-                "min_width": 30,           # 最小宽度
-                "max_width": 300,          # 最大宽度
-                "y_threshold": 150,        # 底部区域阈值
-                "expected_elements": 13,   # 期望的游戏元素数量
-                "element_gap": 5,          # 游戏元素间隔阈值
-                "merge_threshold": 20,     # 合并相近区域的阈值
-                "max_retries": 3,          # 最大重试次数
-                "threshold_reduction": 0.8 # 每次重试的阈值降低比例
-            },
-            "recognition": {
-                "text_area_ratio": 0.4,    # 文字区域占比阈值
-                "text_threshold": 150,     # 二值化阈值
-                "red_threshold": 0.02,     # 红色像素占比阈值
-                "green_threshold": 0.02,   # 绿色像素占比阈值
-                "circle_threshold": 0.7,   # 圆形度阈值
-                "debug_features": True     # 是否输出特征调试信息
-            }
+            "preprocessing": {"blur_kernel": (3, 3), "threshold_min": 200, "threshold_max": 255, "canny_min": 30, "canny_max": 120, "dilate_kernel": (2, 2), "dilate_iterations": 1, "debug_output": True},
+            "detection": {"min_area": 3000, "max_area": 50000, "aspect_ratio_min": 0.6, "aspect_ratio_max": 1.5, "min_width": 30, "max_width": 300, "y_threshold": 150, "expected_elements": 13, "element_gap": 5, "merge_threshold": 20, "max_retries": 3, "threshold_reduction": 0.8},
+            "recognition": {"text_area_ratio": 0.4, "text_threshold": 150, "red_threshold": 0.02, "green_threshold": 0.02, "circle_threshold": 0.7, "debug_features": True}
         }
         
         self.logger.info("游戏状态识别工具初始化完成")

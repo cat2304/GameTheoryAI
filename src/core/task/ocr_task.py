@@ -1,49 +1,15 @@
-"""
-OCR任务管理模块
-============
-
-提供OCR任务的管理功能，包括GUI控制界面和后台任务执行。
-
-子模块
------
-- ocr_task: OCR识别任务
-  - 图像预处理
-  - 文字识别
-  - 结果处理
-
-主要功能
--------
-1. 任务调度
-   - 任务创建
-   - 任务优先级
-   - 任务队列
-   - 任务取消
-
-2. 任务执行
-   - 并行执行
-   - 错误处理
-   - 结果收集
-   - 状态监控
-
-使用示例
--------
-    from src.core.task.ocr_task import OCRTask
-
-    # 创建OCR任务
-    task = OCRTask(image_path='screenshot.png')
-
-    # 执行任务
-    result = task.execute()
-
-    # 获取结果
-    text = result.get_text()
-
-注意事项
--------
-1. 任务执行需要合理配置资源
-2. 注意任务优先级设置
-3. 及时处理任务异常
-"""
+"""OCR任务管理模块: {
+    "描述": "提供OCR任务的管理功能，包括GUI控制界面和后台任务执行。",
+    "子模块": {
+        "ocr_task": "OCR识别任务，包含图像预处理、文字识别、结果处理"
+    },
+    "主要功能": {
+        "任务调度": ["任务创建", "任务优先级", "任务队列", "任务取消"],
+        "任务执行": ["并行执行", "错误处理", "结果收集", "状态监控"]
+    },
+    "使用示例": "from src.core.task.ocr_task import OCRTask\n\n# 创建OCR任务\ntask = OCRTask(image_path='screenshot.png')\n\n# 执行任务\nresult = task.execute()\n\n# 获取结果\ntext = result.get_text()",
+    "注意事项": ["任务执行需要合理配置资源", "注意任务优先级设置", "及时处理任务异常"]
+}"""
 
 # 版本信息
 __version__ = '0.1.0'
