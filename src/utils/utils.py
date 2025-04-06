@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from PIL import Image
+import pytesseract
 
 class ConfigManager:
     """配置管理器类"""
@@ -290,13 +291,7 @@ class ADBHelper:
             return []
 
 class GameOCR:
-    """游戏状态识别类
-    
-    提供游戏状态识别功能，包括：
-    - 游戏区域检测
-    - 游戏状态识别
-    - OCR文字识别
-    """
+    """游戏OCR工具类"""
     
     def __init__(self, config_path: Union[str, Path]):
         """初始化游戏状态识别工具"""
@@ -331,7 +326,9 @@ class GameOCR:
                 'y_threshold': 150,        # 底部区域阈值
                 'expected_elements': 13,    # 期望的游戏元素数量
                 'element_gap': 5,          # 游戏元素间隔阈值
-                'merge_threshold': 20      # 合并相近区域的阈值
+                'merge_threshold': 20,      # 合并相近区域的阈值
+                'max_retries': 3,          # 最大重试次数
+                'threshold_reduction': 0.8  # 每次重试的阈值降低比例
             },
             # 文字识别参数
             'recognition': {
@@ -356,6 +353,10 @@ class GameOCR:
             np.ndarray: 预处理后的图片
         """
         try:
+            # 如果是单通道图像，转换为三通道
+            if len(image.shape) == 2:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            
             # 转换为灰度图
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
@@ -385,8 +386,88 @@ class GameOCR:
             self.logger.error(f"图片预处理失败: {str(e)}")
             raise
     
-    def find_game_elements(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """查找游戏元素区域"""
+    def recognize_text(self, image_path: str) -> str:
+        """识别图片中的文字
+        
+        Args:
+            image_path: 图片路径
+            
+        Returns:
+            str: 识别到的文字
+        """
+        try:
+            # 读取图片
+            image = cv2.imread(image_path)
+            if image is None:
+                raise ValueError(f"无法读取图片: {image_path}")
+            
+            # 预处理图片
+            processed = self.preprocess_image(image)
+            
+            # 使用Tesseract进行OCR识别
+            text = pytesseract.image_to_string(processed, lang='chi_sim+eng')
+            
+            return text.strip()
+            
+        except Exception as e:
+            self.logger.error(f"文字识别失败: {str(e)}")
+            raise
+    
+    def recognize_image(self, image_path: str) -> Dict[str, Any]:
+        """识别游戏截图
+        
+        Args:
+            image_path: 图片路径
+            
+        Returns:
+            Dict[str, Any]: 识别结果，包含success和elements字段
+        """
+        try:
+            # 读取图片
+            image = cv2.imread(image_path)
+            if image is None:
+                raise ValueError(f"无法读取图片: {image_path}")
+            
+            # 预处理图片
+            processed = self.preprocess_image(image)
+            
+            # 查找游戏元素
+            elements = self.find_game_elements(processed)
+            
+            # 对每个元素进行OCR识别
+            results = []
+            for x, y, w, h in elements:
+                # 提取元素区域
+                roi = image[y:y+h, x:x+w]
+                # 识别文字
+                text = pytesseract.image_to_string(roi, lang='chi_sim+eng')
+                results.append({
+                    'region': (x, y, w, h),
+                    'result': text.strip()
+                })
+            
+            return {
+                'success': True,
+                'elements': results
+            }
+            
+        except Exception as e:
+            self.logger.error(f"图片识别失败: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def find_game_elements(self, image: np.ndarray, retry_count: int = 0) -> List[Tuple[int, int, int, int]]:
+        """查找游戏元素区域
+        
+        Args:
+            image: 输入图片
+            retry_count: 当前重试次数
+            
+        Returns:
+            List[Tuple[int, int, int, int]]: 游戏元素区域列表
+        """
         try:
             height, width = image.shape[:2]
             self.logger.debug(f"图片尺寸: {width}x{height}")
@@ -403,9 +484,13 @@ class GameOCR:
             elements = []
             config = self.config['detection']
             
+            # 计算当前阈值
+            current_min_area = config['min_area'] * (config['threshold_reduction'] ** retry_count)
+            current_min_width = config['min_width'] * (config['threshold_reduction'] ** retry_count)
+            
             for contour in contours:
                 area = cv2.contourArea(contour)
-                if area < config['min_area'] or area > config['max_area']:
+                if area < current_min_area or area > config['max_area']:
                     continue
                 
                 x, y, w, h = cv2.boundingRect(contour)
@@ -416,7 +501,7 @@ class GameOCR:
                     aspect_ratio > config['aspect_ratio_max']):
                     continue
                 
-                if w < config['min_width'] or w > config['max_width']:
+                if w < current_min_width or w > config['max_width']:
                     continue
                 
                 elements.append((x, y, w, h))
@@ -425,15 +510,10 @@ class GameOCR:
             elements = self._merge_nearby_regions(elements)
             
             # 检查识别到的元素数是否合理
-            if len(elements) < 10:  # 最少应该有10个元素
+            if len(elements) < 10 and retry_count < config['max_retries']:  # 最少应该有10个元素
                 self.logger.warning(f"识别到的游戏元素数量过少: {len(elements)}")
-                # 尝试调整参数重新识别
-                if len(elements) < config['expected_elements']:
-                    self.logger.info("尝试调整参数重新识别...")
-                    # 临时降低阈值
-                    config['min_area'] *= 0.8
-                    config['min_width'] *= 0.8
-                    return self.find_game_elements(image)
+                self.logger.info(f"尝试第{retry_count + 1}次调整参数重新识别...")
+                return self.find_game_elements(image, retry_count + 1)
             
             # 按x坐标排序
             elements.sort(key=lambda x: x[0])

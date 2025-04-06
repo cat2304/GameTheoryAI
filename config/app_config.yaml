@@ -12,13 +12,8 @@ environment:
 directories:
   data:
     root: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
-    logs: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志目录
-    screenshots: "/Users/mac/cursor/GameTheoryAI/data/screenshots"  # 截图目录
+    tententimg: "/Users/mac/cursor/GameTheoryAI/data/tententimg"  # 数据根目录
     database: "/Users/mac/cursor/GameTheoryAI/data/database"  # 数据库目录
-    results: "/Users/mac/cursor/GameTheoryAI/data/results"  # 结果目录
-    temp: "/Users/mac/cursor/GameTheoryAI/data/temp"  # 临时文件目录
-    config: "/Users/mac/cursor/GameTheoryAI/config"  # 配置文件目录
-    models: "/Users/mac/cursor/GameTheoryAI/data/models"  # 模型文件目录
     cache: "/Users/mac/cursor/GameTheoryAI/data/cache"  # 缓存目录
 
 # ADB配置
@@ -39,15 +34,24 @@ ocr:
   engine: "tesseract"  # OCR引擎类型：tesseract/tencent
   interval: 5  # OCR识别间隔（秒）
   tesseract:
-    lang: "chi_sim"  # 语言包
+    path: "/usr/local/bin/tesseract"  # Tesseract OCR路径
+    lang: "chi_sim+eng"  # 语言包
     config: "--psm 6"  # Tesseract配置参数
     preprocess:
       resize: true  # 是否调整大小
+      resize_factor: 2.0  # 调整比例
       resize_width: 800  # 调整后的宽度
       resize_height: 600  # 调整后的高度
       denoise: true  # 是否降噪
+      blur_kernel: [5, 5]  # 模糊核大小
       threshold: true  # 是否二值化
-      threshold_value: 127  # 二值化阈值
+      threshold_min: 127  # 二值化最小值
+      threshold_max: 255  # 二值化最大值
+    detection:
+      min_area: 1000  # 最小区域面积
+      max_area: 50000  # 最大区域面积
+      aspect_ratio_min: 0.2  # 最小宽高比
+      aspect_ratio_max: 5.0  # 最大宽高比
   tencent:
     secret_id: ""  # 腾讯云SecretId
     secret_key: ""  # 腾讯云SecretKey
