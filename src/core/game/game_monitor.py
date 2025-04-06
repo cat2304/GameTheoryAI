@@ -13,7 +13,8 @@ import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-from src.utils.utils import GameOCR, ADBHelper
+from src.utils.ocr import GameOCR
+from src.utils.utils import ADBHelper
 from typing import Dict, Any
 
 class GameMonitor:
@@ -64,7 +65,6 @@ class GameMonitor:
         
         # 初始化OCR
         try:
-            from src.utils.utils import GameOCR
             self.ocr = GameOCR(self.config_path)
             self.logger.info("OCR初始化成功")
         except Exception as e:
@@ -73,7 +73,6 @@ class GameMonitor:
         
         # 初始化ADB助手
         try:
-            from src.utils.utils import ADBHelper
             # 从配置获取ADB路径
             adb_path = self._get_config_value('adb.path', '/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb')
             self.adb_helper = ADBHelper(adb_path)

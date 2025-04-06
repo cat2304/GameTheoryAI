@@ -14,7 +14,7 @@ app:
 environment:
   python_version: "3.8"  # Python版本要求
   tesseract_path: "/usr/local/bin/tesseract"  # Tesseract OCR路径
-  temp_dir: "/Users/mac/ai/temp"  # 临时文件目录
+  screenshots_dir: "/Users/mac/ai/temp/screenshots"  # 截图保存目录
   data_dir: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
   log_dir: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志根目录
 

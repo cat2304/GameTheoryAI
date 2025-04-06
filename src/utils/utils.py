@@ -295,6 +295,12 @@ class ADBHelper:
             # 生成本地保存路径
             if local_dir is None:
                 local_dir = "screenshots"
+            else:
+                # 确保使用绝对路径
+                local_dir = os.path.abspath(local_dir)
+            
+            # 打印确认使用的保存目录
+            print(f"ADB Helper使用的截图保存目录: {local_dir}")
             
             # 创建日期子目录
             date_str = datetime.now().strftime('%Y%m%d')
@@ -317,8 +323,12 @@ class ADBHelper:
                 self.logger.error(f"拉取截图失败: {pull_result.stderr.decode('utf-8')}")
                 return None
             
-            self.logger.info(f"截图已保存至: {local_path}")
-            return local_path
+            # 返回绝对路径
+            absolute_path = os.path.abspath(local_path)
+            # 打印完整路径以方便查看
+            print(f"截图完整路径: {absolute_path}")
+            self.logger.info(f"截图已保存至: {absolute_path}")
+            return absolute_path
             
         except subprocess.TimeoutExpired:
             self.logger.error("截图操作超时")
@@ -356,220 +366,175 @@ class ADBHelper:
 class ScreenshotManager:
     """截图管理器"""
     def __init__(self, config_manager: ConfigManager):
-        self.logger = get_logger("screenshot.manager")  # 使用模块化日志名称
+        self.logger = get_logger("screenshot.manager")
         self.config_manager = config_manager
         self.adb_helper = ADBHelper(config_manager.get_config()["adb"]["path"])
         self._screenshot_tasks = {}
         self._counter_lock = threading.Lock()
-        self._last_screenshot_time = 0  # 记录上次截图时间，控制速率
-        self._min_interval = 0.1  # 最小截图间隔（秒），防止过度截图
+        self._last_screenshot_time = 0
+        self._min_interval = 0.1
     
+    def _log_and_print(self, message: str, level: str = "info", show_time: bool = False) -> None:
+        """优化的日志输出格式"""
+        if show_time:
+            time_str = datetime.now().strftime("%H:%M:%S")
+            formatted_message = f"[{time_str}] {message}"
+        else:
+            formatted_message = message
+        
+        print(formatted_message)
+        getattr(self.logger, level)(message)
+
     def take_screenshot(self, save_dir: Optional[str] = None) -> Optional[str]:
-        """获取单张截图"""
-        self.logger.debug("尝试获取截图...")
+        """优化后的截图输出"""
         try:
-            # 控制截图速率，避免过度截图
+            # 控制截图速率
             current_time = time.time()
             with self._counter_lock:
                 if current_time - self._last_screenshot_time < self._min_interval:
-                    # 如果间隔太短，适当延迟
                     time.sleep(self._min_interval - (current_time - self._last_screenshot_time))
                 self._last_screenshot_time = time.time()
             
-            # 检查设备连接状态
             if not self.adb_helper._device_connected:
-                self.logger.error("设备未连接，请连接设备后重试")
-                print("设备未连接，请连接设备后重试")
+                self._log_and_print("设备未连接，请连接设备后重试", level="error")
                 return None
             
-            # 执行截图
+            save_dir = save_dir or self.config_manager.get('environment.screenshots_dir')
+            print(f"\n使用截图保存目录: {save_dir}")
+            
             path = self.adb_helper.take_screenshot(local_dir=save_dir)
             if path:
-                self.logger.info(f"截图已保存: {path}")
+                filename = os.path.basename(path)
+                dir_name = os.path.dirname(path)
+                file_size = os.path.getsize(path) / 1024  # 转换为KB
+                self._log_and_print(f"✓ 截图成功 | 文件名: {filename} | 大小: {file_size:.1f}KB | 路径: {dir_name}", "info")
             else:
-                self.logger.warning("截图失败，请检查设备连接")
-                print("截图失败，请检查设备连接")
+                self._log_and_print("✗ 截图失败，请检查设备连接", "warning")
             return path
         except Exception as e:
-            self.logger.error("截图操作异常", exc_info=True)
+            self._log_and_print(f"✗ 截图异常: {str(e)}", "error")
             return None
-    
+
     def start_screenshot_task(self, interval: int = 5, max_count: Optional[int] = None, 
                              save_dir: Optional[str] = None) -> str:
         """启动定时截图任务"""
-        # 检查设备连接状态
         if not self.adb_helper._device_connected:
-            self.logger.error("设备未连接，无法启动截图任务")
-            print("设备未连接，无法启动截图任务")
+            self._log_and_print("设备未连接，无法启动截图任务", level="error")
             return "ERROR_NO_DEVICE"
         
         task_id = str(uuid.uuid4())
-        stop_event = threading.Event()
+        target_dir = save_dir or self.config_manager.get('environment.screenshots_dir')
         
-        # 确定保存目录
-        temp_dir = self.config_manager.get('environment.temp_dir')
-        target_dir = save_dir or os.path.join(temp_dir, 'screenshots')
+        # 处理目录清理
+        if self.config_manager.get('adb.screenshot.clear_target_dir'):
+            self._clear_target_directory(target_dir)
         
-        # 检查是否需要清空目标目录
-        clear_target_dir = self.config_manager.get('adb.screenshot.clear_target_dir')
-        self.logger.info(f"清空目标目录配置: {clear_target_dir}")
-        
-        if clear_target_dir:
-            self.logger.info(f"准备清空目标目录: {target_dir}")
-            try:
-                # 获取日期目录路径
-                date_str = datetime.now().strftime(self.config_manager.get('adb.screenshot.date_format'))
-                date_dir = os.path.join(target_dir, date_str)
-                
-                # 创建日期目录（如果不存在）
-                os.makedirs(date_dir, exist_ok=True)
-                
-                # 清空日期目录中的文件
-                file_count = 0
-                for file in os.listdir(date_dir):
-                    file_path = os.path.join(date_dir, file)
-                    if os.path.isfile(file_path):
-                        try:
-                            os.remove(file_path)
-                            file_count += 1
-                        except Exception as e:
-                            self.logger.warning(f"删除文件失败: {file_path}, 错误: {e}")
-                
-                self.logger.info(f"已清空日期目录: {date_dir}, 共删除{file_count}个文件")
-                
-                # 重置ADB助手的截图计数器
-                self.adb_helper._screenshot_counter = 0
-                
-            except Exception as e:
-                self.logger.error(f"清空目标目录时出错: {str(e)}")
-        else:
-            self.logger.info("未启用目标目录清空功能")
-        
-        def screenshot_task():
-            count = 0
-            self.logger.info(f"截图任务[{task_id}]已启动, 间隔: {interval}秒")
-            
-            try:
-                last_time = 0
-                while not stop_event.is_set():
-                    # 检查是否达到最大次数
-                    if max_count and count >= max_count:
-                        self.logger.info(f"截图任务[{task_id}]已完成, 共截图{count}张")
-                        break
-                    
-                    # 检查设备连接状态
-                    if not self.adb_helper._device_connected:
-                        self.logger.warning("设备未连接，等待设备连接...")
-                        print("设备未连接，等待设备连接...")
-                        # 等待一段时间后重试
-                        if stop_event.wait(timeout=5):
-                            break
-                        continue
-                    
-                    current_time = time.time()
-                    # 动态调整等待时间，确保截图间隔准确
-                    if current_time - last_time < interval:
-                        # 使用短间隔等待以提高响应性
-                        wait_time = min(0.5, interval - (current_time - last_time))
-                        if stop_event.wait(timeout=wait_time):
-                            break
-                        continue
-                    
-                    # 获取截图
-                    screenshot_path = self.take_screenshot(save_dir=save_dir)
-                    if screenshot_path:
-                        count += 1
-                        last_time = time.time()
-                    else:
-                        # 截图失败时等待较长时间
-                        self.logger.warning("截图失败，等待重试...")
-                        if stop_event.wait(timeout=5):
-                            break
-                        
-            except Exception as e:
-                self.logger.error(f"截图任务[{task_id}]执行失败: {str(e)}")
-            finally:
-                # 任务结束时从字典中移除
-                with self._counter_lock:
-                    if task_id in self._screenshot_tasks:
-                        del self._screenshot_tasks[task_id]
-                self.logger.info(f"截图任务[{task_id}]已停止")
-        
-        # 创建并启动线程
-        thread = threading.Thread(target=screenshot_task, daemon=True)
-        with self._counter_lock:
-            self._screenshot_tasks[task_id] = {
-                "thread": thread,
-                "stop_event": stop_event,
-                "interval": interval,
-                "max_count": max_count,
-                "start_time": datetime.now(),
-                "save_dir": save_dir
-            }
-        thread.start()
+        # 创建并启动任务
+        task_info = self._create_task_info(interval, max_count, save_dir)
+        self._start_task_thread(task_id, task_info)
         
         return task_id
-    
-    def stop_screenshot_task(self, task_id: str) -> bool:
-        """停止截图任务"""
+
+    def _clear_target_directory(self, target_dir: str) -> None:
+        """清理目标目录"""
+        try:
+            date_str = datetime.now().strftime(self.config_manager.get('adb.screenshot.date_format'))
+            date_dir = os.path.join(target_dir, date_str)
+            os.makedirs(date_dir, exist_ok=True)
+            
+            file_count = sum(1 for f in os.listdir(date_dir) 
+                           if os.path.isfile(os.path.join(date_dir, f)) 
+                           and os.remove(os.path.join(date_dir, f)) is None)
+            
+            self.logger.info(f"已清空日期目录: {date_dir}, 共删除{file_count}个文件")
+            self.adb_helper._screenshot_counter = 0
+            
+        except Exception as e:
+            self.logger.error(f"清空目标目录时出错: {str(e)}")
+
+    def _create_task_info(self, interval: int, max_count: Optional[int], save_dir: Optional[str]) -> dict:
+        """创建任务信息"""
+        stop_event = threading.Event()
+        return {
+            "thread": None,  # 将在_start_task_thread中设置
+            "stop_event": stop_event,
+            "interval": interval,
+            "max_count": max_count,
+            "start_time": datetime.now(),
+            "save_dir": save_dir
+        }
+
+    def _start_task_thread(self, task_id: str, task_info: dict) -> None:
+        """启动任务线程"""
+        thread = threading.Thread(
+            target=self._screenshot_task_worker,
+            args=(task_id, task_info),
+            daemon=True
+        )
+        task_info["thread"] = thread
+        
         with self._counter_lock:
-            if task_id not in self._screenshot_tasks:
-                self.logger.warning(f"截图任务[{task_id}]不存在")
-                return False
+            self._screenshot_tasks[task_id] = task_info
+        thread.start()
+
+    def _screenshot_task_worker(self, task_id: str, task_info: dict) -> None:
+        """截图任务工作线程"""
+        count = 0
+        self.logger.info(f"截图任务[{task_id}]已启动, 间隔: {task_info['interval']}秒")
+        
+        try:
+            last_time = 0
+            while not task_info['stop_event'].is_set():
+                # 检查是否达到最大次数
+                if task_info['max_count'] and count >= task_info['max_count']:
+                    self.logger.info(f"截图任务[{task_id}]已完成, 共截图{count}张")
+                    break
                 
-            task_info = self._screenshot_tasks[task_id]
-            task_info["stop_event"].set()
-            
-            # 等待线程结束
-            if task_info["thread"].is_alive():
-                task_info["thread"].join(timeout=3)
+                # 检查设备连接状态
+                if not self.adb_helper._device_connected:
+                    self._log_and_print("设备未连接，等待设备连接...", level="warning")
+                    # 等待一段时间后重试
+                    if task_info['stop_event'].wait(timeout=5):
+                        break
+                    continue
                 
-            # 从字典中移除任务
-            del self._screenshot_tasks[task_id]
-            
-        self.logger.info(f"截图任务[{task_id}]已停止")
-        return True
-    
+                current_time = time.time()
+                # 动态调整等待时间，确保截图间隔准确
+                if current_time - last_time < task_info['interval']:
+                    wait_time = min(0.5, task_info['interval'] - (current_time - last_time))
+                    if task_info['stop_event'].wait(timeout=wait_time):
+                        break
+                    continue
+                
+                # 获取截图
+                screenshot_path = self.take_screenshot(save_dir=task_info['save_dir'])
+                if screenshot_path:
+                    count += 1
+                    last_time = time.time()
+                else:
+                    # 截图失败时等待较长时间
+                    self._log_and_print("截图失败，等待重试...", level="warning")
+                    if task_info['stop_event'].wait(timeout=5):
+                        break
+                    
+        except Exception as e:
+            self.logger.error(f"截图任务[{task_id}]执行失败: {str(e)}")
+        finally:
+            # 任务结束时从字典中移除
+            with self._counter_lock:
+                if task_id in self._screenshot_tasks:
+                    del self._screenshot_tasks[task_id]
+            self.logger.info(f"截图任务[{task_id}]已停止")
+
     def stop_all_tasks(self) -> None:
         """停止所有截图任务"""
-        task_ids = list(self._screenshot_tasks.keys())
-        for task_id in task_ids:
-            self.stop_screenshot_task(task_id)
-        self.logger.info("所有截图任务已停止")
-    
-    def get_task_status(self, task_id: Optional[str] = None) -> Dict[str, Any]:
-        """获取任务状态"""
         with self._counter_lock:
-            if task_id:
-                if task_id not in self._screenshot_tasks:
-                    return {"success": False, "message": f"截图任务[{task_id}]不存在"}
-                    
-                task_info = self._screenshot_tasks[task_id]
-                return {
-                    "success": True,
-                    "task_id": task_id,
-                    "running": task_info["thread"].is_alive(),
-                    "interval": task_info["interval"],
-                    "max_count": task_info["max_count"],
-                    "start_time": task_info["start_time"].strftime("%Y-%m-%d %H:%M:%S"),
-                    "elapsed": (datetime.now() - task_info["start_time"]).total_seconds()
-                }
-            else:
-                # 返回所有任务的状态
-                tasks = {}
-                for tid, info in self._screenshot_tasks.items():
-                    tasks[tid] = {
-                        "running": info["thread"].is_alive(),
-                        "interval": info["interval"],
-                        "max_count": info["max_count"],
-                        "start_time": info["start_time"].strftime("%Y-%m-%d %H:%M:%S"),
-                        "elapsed": (datetime.now() - info["start_time"]).total_seconds()
-                    }
-                return {
-                    "success": True,
-                    "task_count": len(self._screenshot_tasks),
-                    "tasks": tasks
-                }
+            for task_id, task_info in list(self._screenshot_tasks.items()):
+                task_info['stop_event'].set()
+                if task_info['thread'].is_alive():
+                    task_info['thread'].join(timeout=3)
+                del self._screenshot_tasks[task_id]
+        self.logger.info("所有截图任务已停止")
 
 # 创建全局实例
 config_manager = ConfigManager("config/app_config.yaml")
@@ -611,30 +576,15 @@ def main():
             logger.info(f"执行默认任务: {default_task}")
             
             try:
-                if default_task == 1:
-                    handle_device_check(screenshot_manager)
-                elif default_task == 2:
-                    handle_adb_server_start(config_manager, screenshot_manager)
-                elif default_task == 3:
-                    handle_single_screenshot(screenshot_manager)
-                elif default_task == 4:
-                    handle_scheduled_screenshot(config_manager, screenshot_manager)
-                elif default_task == 5:
-                    handle_show_config(config_manager)
+                menu_items[default_task-1]['handler']()
             except Exception as e:
                 logger = get_logger(__name__)
                 logger.error(f"默认任务执行失败: {str(e)}", exc_info=True)
                 print(f"\n默认任务执行失败: {str(e)}")
-                print("将显示主菜单...")
         
         # 主循环
         while True:
-            print("\n==== 游戏辅助工具 ====")
-            for i, item in enumerate(menu_items, 1):
-                print(f"{i}. {item['name']}")
-            print("====================")
-            
-            choice = input("请选择功能 (输入q退出): ").strip()
+            choice = display_menu()  # display_menu 函数已经包含了菜单显示
             
             if choice.lower() == 'q':
                 print("\n正在退出程序...")
@@ -680,7 +630,9 @@ def handle_single_screenshot(screenshot_manager):
         return
     
     print("正在执行截图...")
-    screenshot_manager.take_screenshot()
+    screenshot_path = screenshot_manager.take_screenshot()
+    if screenshot_path:
+        print(f"截图成功，文件路径: {screenshot_path}")
 
 def handle_scheduled_screenshot(config_manager, screenshot_manager):
     """处理定时截图任务"""
@@ -754,12 +706,10 @@ def handle_show_config(config_manager):
     """处理显示当前配置"""
     print("\n当前配置:")
     print(f"ADB路径: {config_manager.get('adb.path')}")
-    temp_dir = config_manager.get('environment.temp_dir')
-    screenshot_dir = os.path.join(temp_dir, 'screenshots')
-    print(f"临时文件目录: {temp_dir}")
+    screenshot_dir = config_manager.get('environment.screenshots_dir')
     print(f"截图保存目录: {screenshot_dir}")
     print(f"单任务截图间隔: {config_manager.get('adb.screenshot.interval')}秒")
-    print(f"清空目标目录: {config_manager.get('adb.screenshot.clear_target_dir')}")
+    print(f"清空目标目录: {'是' if config_manager.get('adb.screenshot.clear_target_dir') else '否'}")
     print(f"日期格式: {config_manager.get('adb.screenshot.date_format')}")
 
 def handle_keyboard_interrupt(screenshot_manager):
@@ -769,6 +719,18 @@ def handle_keyboard_interrupt(screenshot_manager):
     print("程序已退出")
     sys.exit(0)
 
+def display_menu():
+    """显示简化的菜单"""
+    menu = """
+==== 游戏辅助工具 ====
+1. 检查设备连接状态
+2. 启动ADB服务
+3. 执行单次截图
+4. 启动定时截图任务
+5. 打印当前配置
+====================
+请选择功能 (q退出): """
+    return input(menu)
 
 if __name__ == "__main__":
     try:

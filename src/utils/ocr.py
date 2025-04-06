@@ -315,3 +315,148 @@ def handle_ocr_test(game_ocr, config_manager):
     except Exception as e:
         print(f"发生错误: {str(e)}")
         logger.error(f"OCR识别异常: {str(e)}", exc_info=True) 
+
+
+
+
+        #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+OCR测试脚本
+用于测试OCR模块的功能
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# 导入必要模块（直接导入，避免通过__init__.py导入）
+from src.utils.ocr import GameOCR, handle_ocr_test
+from src.utils.utils import ConfigManager
+
+def main():
+    """OCR测试主函数"""
+    print("OCR模块测试")
+    print("-" * 50)
+    
+    try:
+        # 初始化配置管理器
+        config_path = os.path.join(Path(__file__).parent, "config", "app_config.yaml")
+        config_manager = ConfigManager(config_path)
+        
+        # 初始化OCR工具
+        game_ocr = GameOCR(config_path)
+        
+        # 执行OCR测试
+        handle_ocr_test(game_ocr, config_manager)
+        
+    except Exception as e:
+        print(f"测试失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return 1
+        
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main()) 
+
+    #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+创建测试用的截图文件
+"""
+
+import os
+import sys
+import cv2
+import numpy as np
+from pathlib import Path
+from datetime import datetime
+
+def create_test_image(output_dir=None):
+    """创建测试用的截图文件"""
+    # 设置默认输出目录
+    if output_dir is None:
+        # 使用配置中的目录结构
+        temp_dir = os.path.join(Path(__file__).parent, "data")
+        output_dir = os.path.join(temp_dir, "screenshots")
+    
+    # 创建日期子目录
+    date_str = datetime.now().strftime('%Y%m%d')
+    target_dir = os.path.join(output_dir, date_str)
+    os.makedirs(target_dir, exist_ok=True)
+    
+    # 创建测试图片
+    # 创建一个空白图片
+    width, height = 800, 600
+    test_image = np.ones((height, width, 3), dtype=np.uint8) * 255  # 白色背景
+    
+    # 在底部添加一些模拟的游戏元素
+    y_start = height - 150  # 底部区域开始位置
+    
+    # 添加一些彩色方块，模拟游戏元素
+    elements = [
+        {"text": "元素1", "color": (255, 0, 0)},    # 红色
+        {"text": "元素2", "color": (0, 255, 0)},    # 绿色
+        {"text": "元素3", "color": (0, 0, 255)},    # 蓝色
+        {"text": "元素4", "color": (255, 255, 0)},  # 黄色
+        {"text": "元素5", "color": (255, 0, 255)},  # 紫色
+        {"text": "元素6", "color": (0, 255, 255)},  # 青色
+        {"text": "元素7", "color": (128, 0, 0)},    # 深红色
+        {"text": "元素8", "color": (0, 128, 0)},    # 深绿色
+        {"text": "元素9", "color": (0, 0, 128)},    # 深蓝色
+        {"text": "特殊元素A", "color": (128, 128, 0)},  # 橄榄色
+        {"text": "特殊元素B", "color": (128, 0, 128)},  # 深紫色
+        {"text": "特殊元素C", "color": (0, 128, 128)}   # 深青色
+    ]
+    
+    # 计算每个元素的宽度
+    element_width = width // len(elements)
+    
+    # 绘制元素
+    for i, element in enumerate(elements):
+        # 计算元素位置
+        x1 = i * element_width
+        x2 = (i + 1) * element_width
+        y1 = y_start
+        y2 = height
+        
+        # 绘制有颜色的矩形
+        cv2.rectangle(test_image, (x1, y1), (x2, y2), element["color"], -1)
+        
+        # 绘制文字
+        cv2.putText(
+            test_image, 
+            element["text"], 
+            (x1 + 5, y1 + 30), 
+            cv2.FONT_HERSHEY_SIMPLEX, 
+            0.5, 
+            (0, 0, 0),  # 黑色文字
+            1
+        )
+    
+    # 在顶部添加一些说明文字
+    cv2.putText(
+        test_image,
+        "测试用OCR识别图片",
+        (width // 4, 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 0),
+        2
+    )
+    
+    # 保存图片
+    filename = f"1.png"  # 使用数字作为文件名，模拟截图管理器的行为
+    filepath = os.path.join(target_dir, filename)
+    cv2.imwrite(filepath, test_image)
+    
+    print(f"测试图片已保存至: {filepath}")
+    return filepath
+
+if __name__ == "__main__":
+    create_test_image()
+    print("测试图片创建完成！") 
