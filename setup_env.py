@@ -6,9 +6,6 @@ import sys
 import subprocess
 import platform
 from pathlib import Path
-from setuptools import setup, find_namespace_packages
-from setuptools.command.install import install
-from setuptools.command.develop import develop
 
 def check_python_version():
     """检查Python版本"""
@@ -65,8 +62,7 @@ def setup_environment():
     # 设置配置文件路径
     os.environ['CONFIG_PATH'] = str(Path(__file__).parent / 'config' / 'app_config.yaml')
 
-def main():
-    """主函数"""
+if __name__ == '__main__':
     # 检查Python版本
     check_python_version()
     
@@ -79,25 +75,4 @@ def main():
     # 设置环境
     setup_environment()
     
-    print("Setup completed successfully!")
-
-if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        # 如果没有参数，直接运行设置程序
-        main()
-    else:
-        # 如果有参数，使用 setuptools 的 setup 函数
-        setup(
-            name="game-theory-ai",
-            version="0.1.0",
-            description="Game Theory AI Assistant",
-            author="Your Name",
-            author_email="your.email@example.com",
-            packages=find_namespace_packages(include=['src*']),
-            package_dir={'': '.'},
-            python_requires=">=3.8,<3.9",
-            cmdclass={
-                'install': install,
-                'develop': develop,
-            },
-        ) 
+    print("Setup completed successfully!") 
