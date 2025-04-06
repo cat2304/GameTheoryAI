@@ -1,0 +1,17 @@
+name: mahjong
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pytest
+  - pytest-cov
+  - opencv
+  - pillow
+  - numpy
+  - flask
+  - pyyaml
+  - pytesseract
+  - black
+  - flake8
+  - pip 

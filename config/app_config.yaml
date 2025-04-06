@@ -1,0 +1,32 @@
+#麻将坐标参数
+
+# ADB配置
+adb:
+  path: "/Applications/NemuPlayer.app/Contents/MacOS/adb"  # ADB工具路径
+  screenshot:
+    remote_path: "/sdcard/screenshot.png"  # 设备端保存路径
+    local_temp_dir: "/Users/mac/ai/temp/img"  # 本地临时目录
+    date_format: "%Y%m%d"  # 日期格式
+    filename_format: "{number}.png"  # 文件名格式
+    counter_file: "counter.txt"  # 计数器文件
+    interval: 5  # 截图间隔（秒）
+    save_path: /Users/mac/ai/temp/img  # 截图保存路径
+
+# 日志配置
+logging:
+  level: "INFO"  # 日志级别
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"  # 日志格式
+  max_bytes: 10485760  # 日志文件最大大小（10MB）
+  backup_count: 5  # 保留的备份文件数量
+  file:
+    enabled: true  # 是否启用文件日志
+    dir: "data/logs"  # 日志文件目录
+    name_format: "{name}_%Y%m%d.log"  # 日志文件名格式
+
+# 腾讯云OCR配置
+tencent:
+  secret_id: ""  # 腾讯云SecretId
+  secret_key: ""  # 腾讯云SecretKey
+  ocr:
+    endpoint: ocr.tencentcloudapi.com
+    region: ""  # 地域，如：ap-guangzhou
