@@ -49,12 +49,15 @@ def get_logger(name: str) -> logging.Logger:
 
 class OCR:
     """OCR核心类"""
-    def __init__(self, config_path: str = "config/app_config.yaml"):
+    def __init__(self, config_path: str = "config/app_config.yaml", debug_mode: bool = False):
         self.logger = get_logger("ocr.core")
         self.config = ConfigManager(config_path).get_config()
         self.templates = {}
-        self.debug_dir = Path("debug")
-        self.debug_dir.mkdir(exist_ok=True)
+        self.debug_mode = debug_mode
+        
+        if self.debug_mode:
+            self.debug_dir = Path("debug")
+            self.debug_dir.mkdir(exist_ok=True)
         
         # 预处理参数
         self.preprocess_params = {
@@ -341,8 +344,8 @@ class OCR:
                         best_score = score
                         best_match = name
                         
-                        # 保存匹配结果用于调试
-                        if score > 0.3:
+                        # 只在调试模式下保存匹配结果
+                        if self.debug_mode and score > 0.3:
                             debug_image = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
                             h, w = template.shape
                             cv2.rectangle(debug_image, (0, 0), (w, h), (0, 255, 0), 2)
@@ -405,8 +408,9 @@ class OCR:
                     # 保存模板
                     name = filename.replace('.png', '')
                     self.templates[name] = image
-                    # 保存模板用于调试
-                    cv2.imwrite(str(self.debug_dir / f"template_{name}.png"), image)
+                    # 只在调试模式下保存模板
+                    if self.debug_mode:
+                        cv2.imwrite(str(self.debug_dir / f"template_{name}.png"), image)
             
             self.logger.info(f"加载了 {len(self.templates)} 个模板")
             
