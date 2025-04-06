@@ -19,26 +19,41 @@ from typing import Dict, Any
 class GameMonitor:
     """游戏监控类，用于监控游戏状态并自动截图和分析"""
     
-    def __init__(self, config_path=None, screenshot_dir=None):
+    def __init__(self, config=None, screenshot_dir=None):
         """初始化游戏监控器
         
         Args:
-            config_path: 配置文件路径
+            config: 配置对象或路径
             screenshot_dir: 截图保存目录
         """
         self.logger = logging.getLogger(__name__)
         
         # 设置配置文件路径
-        if config_path is None:
-            config_path = Path("config/app_config.yaml")
-        elif isinstance(config_path, str):
-            config_path = Path(config_path)
+        self.config_path = None
+        if isinstance(config, str):
+            self.config_path = Path(config)
+        elif isinstance(config, dict):
+            self.config = config
+            if 'environment' in config and 'data_dir' in config['environment']:
+                data_dir = config['environment']['data_dir']
+            else:
+                data_dir = "data"
+        else:
+            self.config_path = Path("config/app_config.yaml")
         
         # 设置截图目录
         if screenshot_dir:
             self.screenshot_dir = Path(screenshot_dir)
         else:
-            self.screenshot_dir = Path("data/screenshots")
+            # 根据配置设置默认目录
+            if hasattr(self, 'config') and isinstance(self.config, dict):
+                if 'environment' in self.config and 'temp_dir' in self.config['environment']:
+                    temp_dir = self.config['environment']['temp_dir']
+                    self.screenshot_dir = Path(temp_dir) / "screenshots"
+                else:
+                    self.screenshot_dir = Path("data/screenshots")
+            else:
+                self.screenshot_dir = Path("data/screenshots")
         
         # 确保目录存在
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -48,12 +63,21 @@ class GameMonitor:
         self.monitor_thread = None
         
         # 初始化OCR
-        self.ocr = GameOCR(config_path)
+        try:
+            from src.utils.utils import GameOCR
+            self.ocr = GameOCR(self.config_path)
+            self.logger.info("OCR初始化成功")
+        except Exception as e:
+            self.logger.warning(f"OCR初始化失败: {e}")
+            self.ocr = None
         
         # 初始化ADB助手
         try:
-            self.adb_helper = ADBHelper()
-            self.logger.info("ADB助手初始化成功")
+            from src.utils.utils import ADBHelper
+            # 从配置获取ADB路径
+            adb_path = self._get_config_value('adb.path', '/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb')
+            self.adb_helper = ADBHelper(adb_path)
+            self.logger.info(f"ADB助手初始化成功，路径: {adb_path}")
         except Exception as e:
             self.logger.warning(f"ADB助手初始化失败: {e}")
             self.adb_helper = None
@@ -75,23 +99,31 @@ class GameMonitor:
         }
         
         # 监控配置
-        self.config = {
-            'interval': self._get_config_value(config_path, 'adb.screenshot.interval', 1),  # 从配置读取截图间隔
+        self.monitoring_config = {
+            'interval': self._get_config_value('adb.screenshot.interval', 1),  # 从配置读取截图间隔
             'max_screenshots': 100,  # 最大截图数量
             'auto_analyze': True,  # 是否自动分析
         }
         
-        self.logger.info(f"游戏监控初始化完成，截图保存目录: {self.screenshot_dir}, 截图间隔: {self.config['interval']}秒")
+        self.logger.info(f"游戏监控初始化完成，截图保存目录: {self.screenshot_dir}, 截图间隔: {self.monitoring_config['interval']}秒")
     
-    def _get_config_value(self, config_path, key, default):
-        """从配置文件获取值"""
+    def _get_config_value(self, key, default):
+        """从配置获取值"""
         try:
-            if config_path is None:
-                from src.utils.utils import get_config
-                return get_config(key, default)
-            else:
+            if hasattr(self, 'config') and isinstance(self.config, dict):
+                # 从传入的config字典中获取
+                parts = key.split('.')
+                value = self.config
+                for part in parts:
+                    if part in value:
+                        value = value[part]
+                    else:
+                        return default
+                return value
+            elif self.config_path and self.config_path.exists():
+                # 从配置文件获取
                 import yaml
-                with open(config_path, 'r') as f:
+                with open(self.config_path, 'r') as f:
                     config = yaml.safe_load(f)
                     # 处理点分隔的键
                     value = config
@@ -101,6 +133,9 @@ class GameMonitor:
                         else:
                             return default
                     return value
+            else:
+                # 无法获取配置，使用默认值
+                return default
         except Exception as e:
             self.logger.warning(f"读取配置失败: {str(e)}，使用默认值: {default}")
             return default
@@ -199,7 +234,7 @@ class GameMonitor:
                 current_time = time.time()
                 
                 # 检查是否到达截图间隔
-                if current_time - last_screenshot_time >= self.config['interval']:
+                if current_time - last_screenshot_time >= self.monitoring_config['interval']:
                     # 截图
                     filepath = self.take_screenshot()
                     
@@ -208,7 +243,7 @@ class GameMonitor:
                         last_screenshot_time = current_time
                         
                         # 如果开启自动分析，则分析截图
-                        if self.config['auto_analyze']:
+                        if self.monitoring_config['auto_analyze']:
                             # 异步分析截图，避免阻塞监控循环
                             threading.Thread(
                                 target=self.analyze_screenshot,
@@ -217,8 +252,8 @@ class GameMonitor:
                             ).start()
                     
                     # 检查是否达到最大截图数
-                    if self.config['max_screenshots'] > 0 and screenshot_count >= self.config['max_screenshots']:
-                        self.logger.info(f"已达到最大截图数 {self.config['max_screenshots']}，停止监控")
+                    if self.monitoring_config['max_screenshots'] > 0 and screenshot_count >= self.monitoring_config['max_screenshots']:
+                        self.logger.info(f"已达到最大截图数 {self.monitoring_config['max_screenshots']}，停止监控")
                         self.is_running = False
                         break
                 
@@ -242,6 +277,14 @@ class GameMonitor:
         self.logger.info(f"开始分析截图: {image_path}")
         
         try:
+            # 检查OCR是否可用
+            if self.ocr is None:
+                self.logger.warning("OCR未初始化，跳过图像分析")
+                return {
+                    'success': False,
+                    'error': 'OCR模块未初始化或不可用'
+                }
+                
             # 使用OCR识别游戏元素
             ocr_result = self.ocr.recognize_image(image_path)
             
@@ -398,7 +441,7 @@ def run_project(config: Dict[str, Any]) -> None:
     Args:
         config: 项目配置字典
     """
-    logger = get_logger(__name__)
+    logger = logging.getLogger(__name__)
     logger.info("开始运行 GameTheoryAI 项目...")
     
     try:
@@ -480,17 +523,36 @@ def run_project(config: Dict[str, Any]) -> None:
 
 def main():
     try:
-        monitor = GameMonitor()
+        # 获取配置
+        import yaml
+        from pathlib import Path
+        
+        config_path = Path("config/app_config.yaml")
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            print("配置文件加载成功")
+        else:
+            config = None
+            print("警告：配置文件不存在，使用默认配置")
+        
+        # 初始化并启动监控
+        monitor = GameMonitor(config)
         monitor.start()
+        
+        print("游戏监控已启动，按 Ctrl+C 停止...")
         
         # 保持程序运行
         while True:
             time.sleep(1)
             
     except KeyboardInterrupt:
-        monitor.stop()
+        print("\n收到终止信号，正在停止...")
+        if 'monitor' in locals():
+            monitor.stop()
     except Exception as e:
         logging.error(f"程序执行失败: {str(e)}")
+        print(f"程序执行失败: {str(e)}")
 
 if __name__ == "__main__":
     main() 

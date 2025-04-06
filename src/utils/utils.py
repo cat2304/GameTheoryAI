@@ -886,10 +886,9 @@ def main():
     print("\n==== 游戏辅助工具 ====")
     print("1. 执行单次截图")
     print("2. 启动定时截图任务 (按Ctrl+C停止)")
-    print("3. 启动多间隔截图任务 (按Ctrl+C停止)")
-    print("4. 检查设备连接状态")
-    print("5. 启动ADB服务")
-    print("6. 打印当前配置")
+    print("3. 检查设备连接状态")
+    print("4. 启动ADB服务")
+    print("5. 打印当前配置")
     print("====================\n")
     
     try:
@@ -939,58 +938,8 @@ def main():
                 screenshot_manager.stop_all_tasks()
                 logger.info("所有截图任务已停止")
                 print("任务已停止")
-        
+                
         elif choice == "3":
-            # 多间隔截图任务
-            if not screenshot_manager.adb_helper.check_device_connection():
-                print("无法启动截图任务: 没有检测到已连接的设备")
-                return
-            
-            # 从配置文件读取间隔时间列表
-            default_intervals = [1, 3, 5]  # 默认值
-            intervals = config_manager.get('adb.screenshot.multi_intervals', default_intervals)
-            
-            if not isinstance(intervals, list) or not intervals:
-                intervals = default_intervals
-                print(f"配置文件中未找到有效的多间隔配置，使用默认值: {intervals}秒")
-            else:
-                print(f"从配置文件读取多间隔配置: {intervals}秒")
-            
-            task_ids = []
-            has_error = False
-            
-            for interval in intervals:
-                task_id = screenshot_manager.start_screenshot_task(interval=interval)
-                if task_id == "ERROR_NO_DEVICE":
-                    has_error = True
-                    print(f"间隔为{interval}秒的任务启动失败: 设备未连接")
-                else:
-                    task_ids.append(task_id)
-                    print(f"已启动间隔为{interval}秒的截图任务: {task_id}")
-            
-            if not task_ids:
-                print("所有任务启动失败，请检查设备连接")
-                return
-                
-            if has_error:
-                print("部分任务启动失败，只有已连接的设备会执行截图")
-                
-            print(f"已启动{len(task_ids)}个截图任务，按Ctrl+C停止...")
-            
-            try:
-                while True:
-                    # 定期检查设备连接状态
-                    if not screenshot_manager.adb_helper.check_device_connection():
-                        print("警告: 设备连接已断开，等待重新连接...")
-                    time.sleep(3)
-            except KeyboardInterrupt:
-                print("\n收到中断信号，正在停止...")
-            finally:
-                screenshot_manager.stop_all_tasks()
-                logger.info("所有截图任务已停止")
-                print("所有任务已停止")
-                
-        elif choice == "4":
             # 检查设备连接
             print("开始检查设备连接状态...")
             if screenshot_manager.adb_helper.check_device_connection():
@@ -999,7 +948,7 @@ def main():
                 print("设备未连接，请连接设备后重试")
                 print("提示: 请确保USB调试已开启，并且已授权此电脑连接")
                 
-        elif choice == "5":
+        elif choice == "4":
             # 启动ADB服务
             print("正在启动ADB服务...")
             try:
@@ -1031,7 +980,7 @@ def main():
                 print(f"启动ADB服务时出错: {str(e)}")
                 logger.error(f"启动ADB服务时出错: {str(e)}")
                 
-        elif choice == "6":
+        elif choice == "5":
             # 打印当前配置
             print("\n当前配置:")
             print(f"ADB路径: {config_manager.get('adb.path')}")
@@ -1040,12 +989,11 @@ def main():
             print(f"临时文件目录: {temp_dir}")
             print(f"截图保存目录: {screenshot_dir}")
             print(f"单任务截图间隔: {config_manager.get('adb.screenshot.interval')}秒")
-            print(f"多任务截图间隔: {config_manager.get('adb.screenshot.multi_intervals')}秒")
             print(f"清空目标目录: {config_manager.get('adb.screenshot.clear_target_dir')}")
             print(f"日期格式: {config_manager.get('adb.screenshot.date_format')}")
                 
         else:
-            print("无效的选择，请输入1-6之间的数字")
+            print("无效的选择，请输入1-5之间的数字")
             
     except Exception as e:
         logger.error(f"执行任务异常: {str(e)}")
