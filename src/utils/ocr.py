@@ -55,6 +55,7 @@ class OCR:
         self.templates = {}
         self.debug_mode = debug_mode
         
+        # 初始化debug目录
         if self.debug_mode:
             self.debug_dir = Path("debug")
             self.debug_dir.mkdir(exist_ok=True)
@@ -201,8 +202,9 @@ class OCR:
             binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, 
                                     iterations=self.preprocess_params['morph_iterations'])
             
-            # 保存预处理结果用于调试
-            cv2.imwrite(str(self.debug_dir / "preprocessed.png"), binary)
+            # 只在调试模式下保存预处理结果
+            if self.debug_mode:
+                cv2.imwrite(str(self.debug_dir / "preprocessed.png"), binary)
             
             return binary
         except Exception as e:
@@ -233,12 +235,13 @@ class OCR:
                     "center": [x + w//2, y + h//2]
                 })
             
-            # 保存检测结果用于调试
-            debug_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-            for elem in elements:
-                x1, y1, x2, y2 = elem["box"]
-                cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.imwrite(str(self.debug_dir / "detected_elements.png"), debug_image)
+            # 只在调试模式下保存检测结果
+            if self.debug_mode:
+                debug_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                for elem in elements:
+                    x1, y1, x2, y2 = elem["box"]
+                    cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.imwrite(str(self.debug_dir / "detected_elements.png"), debug_image)
             
             self.logger.info(f"检测到 {len(elements)} 个元素")
             return elements
