@@ -8,10 +8,15 @@ from .utils import (
     ConfigManager,
     LogManager,
     ADBHelper,
-    GameOCR,
     get_config,
     set_config,
     get_logger
+)
+
+from .ocr import (
+    GameOCR,
+    handle_ocr_test,
+    find_latest_screenshot
 )
 
 __all__ = [
@@ -21,5 +26,7 @@ __all__ = [
     'GameOCR',
     'get_config',
     'set_config',
-    'get_logger'
+    'get_logger',
+    'handle_ocr_test',
+    'find_latest_screenshot'
 ]
