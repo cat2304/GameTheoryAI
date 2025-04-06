@@ -1,4 +1,4 @@
-name: mahjong
+name: gameai
 channels:
   - conda-forge
   - defaults
