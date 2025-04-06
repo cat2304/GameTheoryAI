@@ -14,6 +14,7 @@ import numpy as np
 import pytesseract
 from PIL import Image
 from src.utils.utils import GameOCR
+from typing import Dict, Any
 
 class GameMonitor:
     """游戏监控类，用于监控游戏状态并自动截图和分析"""
@@ -357,6 +358,92 @@ class GameMonitor:
                 suggestions.append(f"考虑获取更多 {element}")
         
         return suggestions
+
+def run_project(config: Dict[str, Any]) -> None:
+    """运行项目主函数
+    
+    Args:
+        config: 项目配置字典
+    """
+    logger = get_logger(__name__)
+    logger.info("开始运行 GameTheoryAI 项目...")
+    
+    try:
+        # 初始化游戏监控
+        monitor = GameMonitor(config)
+        logger.info("游戏监控初始化完成")
+        
+        # 初始化AI决策
+        ai = AIPlayer(config)
+        logger.info("AI决策初始化完成")
+        
+        # 启动监控
+        monitor.start()
+        logger.info("游戏监控已启动")
+        
+        # 启动截图任务
+        from src.utils.utils import start_screenshot_task
+        screenshot_manager = start_screenshot_task(monitor, config)
+        
+        print("\n游戏监控已启动，按 Ctrl+C 停止...")
+        
+        # 主循环
+        while True:
+            try:
+                # 获取游戏状态
+                game_state = monitor.get_state()
+                if game_state:
+                    # 更新AI状态
+                    ai.update_state(game_state)
+                    
+                    # 使用AI决策
+                    next_move = ai.decide_action()
+                    logger.info(f"AI决策结果: {next_move}")
+                    
+                    # 执行动作
+                    if next_move:
+                        monitor.execute_action(next_move)
+                else:
+                    logger.warning("获取游戏状态失败")
+                
+                time.sleep(0.1)  # 控制循环频率
+                
+            except Exception as e:
+                logger.error(f"主循环执行出错: {str(e)}")
+                time.sleep(1)  # 出错后等待1秒再继续
+                continue
+                
+    except KeyboardInterrupt:
+        logger.info("收到终止信号，正在停止...")
+    except Exception as e:
+        logger.error(f"程序执行失败: {str(e)}")
+        raise
+    finally:
+        # 清理资源
+        if 'screenshot_manager' in locals():
+            try:
+                screenshot_manager.stop()
+                logger.info("截图任务已停止")
+            except Exception as e:
+                logger.error(f"停止截图任务时出错: {str(e)}")
+        
+        if 'monitor' in locals():
+            try:
+                monitor.stop()
+                logger.info("游戏监控已停止")
+            except Exception as e:
+                logger.error(f"停止监控时出错: {str(e)}")
+        
+        if 'ai' in locals():
+            try:
+                ai.cleanup()
+                logger.info("AI资源已清理")
+            except Exception as e:
+                logger.error(f"清理AI资源时出错: {str(e)}")
+        
+        logger.info("程序已停止")
+        print("\n程序已停止，按回车键返回主菜单...")
+        input()
 
 def main():
     try:

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from PIL import Image
 import pytesseract
+from concurrent.futures import ThreadPoolExecutor
 
 class ConfigManager:
     """配置管理器类"""
@@ -156,7 +157,26 @@ class ADBHelper:
         """
         self.adb_path = adb_path or config_manager.get('adb.path')
         self.logger = log_manager.get_logger(__name__)
-        self._verify_adb()
+        self._screenshot_counter = 0  # 截图计数器，用于生成递增的文件名
+        self.use_mock = not self._is_adb_available()
+        
+        if self.use_mock:
+            self.logger.warning("ADB工具不可用，将使用模拟模式")
+            # 检查模拟脚本是否存在
+            if not os.path.exists('mock_adb.py'):
+                self.logger.error("模拟脚本不存在: mock_adb.py")
+        else:
+            self._verify_adb()
+    
+    def _is_adb_available(self) -> bool:
+        """检查ADB是否可用"""
+        try:
+            result = subprocess.run(['which', self.adb_path], 
+                                  capture_output=True, 
+                                  text=True)
+            return result.returncode == 0
+        except Exception:
+            return False
 
     def _verify_adb(self) -> None:
         """验证ADB工具是否可用"""
@@ -180,6 +200,10 @@ class ADBHelper:
             str: 保存的截图文件路径
         """
         try:
+            # 如果启用模拟模式
+            if self.use_mock:
+                return self._take_mock_screenshot(local_dir)
+            
             # 准备基础路径
             base_dir = local_dir or config_manager.get('adb.screenshot.local_temp_dir')
             remote_path = config_manager.get('adb.screenshot.remote_path')
@@ -189,8 +213,9 @@ class ADBHelper:
             date_dir = Path(base_dir) / date_str
             os.makedirs(date_dir, exist_ok=True)
             
-            # 生成文件名
-            filename = f"screenshot_{int(time.time())}.png"
+            # 生成文件名（递增序号）
+            self._screenshot_counter += 1
+            filename = f"{self._screenshot_counter}.png"
             local_path = date_dir / filename
             
             # 执行截图
@@ -208,6 +233,48 @@ class ADBHelper:
         except Exception as e:
             self.logger.error(f"截图过程中发生错误: {e}")
             raise
+    
+    def _take_mock_screenshot(self, local_dir: Optional[str] = None) -> str:
+        """执行模拟截图
+        
+        Args:
+            local_dir: 本地保存目录，如果为None则使用配置文件中的路径
+            
+        Returns:
+            str: 保存的截图文件路径
+        """
+        try:
+            # 准备基础路径
+            base_dir = local_dir or config_manager.get('adb.screenshot.local_temp_dir')
+            
+            # 创建日期目录
+            date_str = datetime.now().strftime(config_manager.get('adb.screenshot.date_format', '%Y%m%d'))
+            date_dir = Path(base_dir) / date_str
+            os.makedirs(date_dir, exist_ok=True)
+            
+            # 生成文件名（递增序号）
+            self._screenshot_counter += 1
+            filename = f"{self._screenshot_counter}.png"
+            save_path = date_dir / filename
+            
+            # 创建一个空白图片
+            img = np.zeros((720, 1280, 3), dtype=np.uint8)
+            
+            # 添加一些文字和图形，模拟游戏界面
+            cv2.putText(img, 'Mock Screenshot', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(img, f'Time: {datetime.now().strftime("%H:%M:%S")}', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 1)
+            cv2.rectangle(img, (100, 200), (400, 400), (0, 255, 0), 2)
+            cv2.circle(img, (800, 300), 50, (0, 0, 255), -1)
+            
+            # 保存图片
+            cv2.imwrite(str(save_path), img)
+            
+            self.logger.info(f"生成模拟截图: {save_path}")
+            return str(save_path)
+            
+        except Exception as e:
+            self.logger.error(f"生成模拟截图失败: {str(e)}")
+            return ""
 
     def _execute_screenshot(self, remote_path: str) -> None:
         """执行设备截图命令"""
@@ -553,6 +620,320 @@ class GameOCR:
         merged.append(tuple(current))
         return merged
 
+class ScreenshotManager:
+    """截图管理器，使用线程池进行异步调度"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        """初始化截图管理器
+        
+        Args:
+            config: 配置字典
+        """
+        self.logger = get_logger(__name__)
+        self.config = config
+        adb_path = config.get('adb', {}).get('path')
+        self.logger.info(f"使用ADB路径: {adb_path}")
+        self.adb_helper = ADBHelper(adb_path)
+        self.is_running = False
+        self.thread_pool = ThreadPoolExecutor(max_workers=1)
+        self.screenshot_interval = config.get('adb', {}).get('screenshot', {}).get('interval', 5.0)
+        
+    def start(self):
+        """启动截图任务"""
+        if self.is_running:
+            self.logger.warning("截图任务已在运行中")
+            return
+            
+        self.is_running = True
+        self._schedule_next_screenshot()
+        self.logger.info(f"截图任务已启动，间隔 {self.screenshot_interval} 秒")
+        
+    def stop(self):
+        """停止截图任务"""
+        if not self.is_running:
+            self.logger.warning("截图任务未在运行")
+            return
+            
+        self.is_running = False
+        self.thread_pool.shutdown(wait=False)
+        self.logger.info("截图任务已停止")
+        
+    def _schedule_next_screenshot(self):
+        """调度下一次截图"""
+        if not self.is_running:
+            return
+            
+        self.thread_pool.submit(self._take_screenshot)
+        
+    def _take_screenshot(self):
+        """执行截图任务"""
+        try:
+            # 准备基础路径
+            base_dir = self.config.get('adb', {}).get('screenshot', {}).get('local_temp_dir', 'data/screenshots')
+            
+            # 执行截图
+            screenshot_path = self.adb_helper.take_screenshot(base_dir)
+                
+            if screenshot_path:
+                self.logger.debug(f"截屏成功: {screenshot_path}")
+            else:
+                self.logger.warning("截屏失败")
+                
+        except Exception as e:
+            self.logger.error(f"截屏出错: {str(e)}")
+        finally:
+            # 调度下一次截图
+            if self.is_running:
+                threading.Timer(self.screenshot_interval, self._schedule_next_screenshot).start()
+
+def run_project(config: Dict[str, Any]) -> None:
+    """运行项目主函数
+    
+    Args:
+        config: 项目配置字典
+    """
+    logger = get_logger(__name__)
+    logger.info("开始运行 GameTheoryAI 项目...")
+    
+    try:
+        # 初始化游戏监控
+        monitor = GameMonitor(config)
+        logger.info("游戏监控初始化完成")
+        
+        # 初始化AI决策
+        ai = AIPlayer(config)
+        logger.info("AI决策初始化完成")
+        
+        # 启动监控
+        monitor.start()
+        logger.info("游戏监控已启动")
+        
+        print("\n游戏监控已启动，按 Ctrl+C 停止...")
+        
+        # 定时截屏和状态更新
+        def screenshot_and_update():
+            try:
+                # 执行截屏
+                screenshot_path = monitor.take_screenshot()
+                if screenshot_path:
+                    logger.debug(f"截屏成功: {screenshot_path}")
+                    
+                    # 获取游戏状态
+                    game_state = monitor.get_state()
+                    if game_state:
+                        # 更新AI状态
+                        ai.update_state(game_state)
+                        
+                        # 使用AI决策
+                        next_move = ai.decide_action()
+                        logger.info(f"AI决策结果: {next_move}")
+                        
+                        # 执行动作
+                        if next_move:
+                            monitor.execute_action(next_move)
+                    else:
+                        logger.warning("获取游戏状态失败")
+                else:
+                    logger.warning("截屏失败")
+                    
+            except Exception as e:
+                logger.error(f"截屏和状态更新出错: {str(e)}")
+            finally:
+                # 5秒后再次执行
+                threading.Timer(5.0, screenshot_and_update).start()
+        
+        # 启动定时任务
+        screenshot_and_update()
+        
+        # 保持主线程运行
+        while True:
+            time.sleep(1)
+                
+    except KeyboardInterrupt:
+        logger.info("收到终止信号，正在停止...")
+    except Exception as e:
+        logger.error(f"程序执行失败: {str(e)}")
+        raise
+    finally:
+        # 清理资源
+        if 'monitor' in locals():
+            try:
+                monitor.stop()
+                logger.info("游戏监控已停止")
+            except Exception as e:
+                logger.error(f"停止监控时出错: {str(e)}")
+        
+        if 'ai' in locals():
+            try:
+                ai.cleanup()
+                logger.info("AI资源已清理")
+            except Exception as e:
+                logger.error(f"清理AI资源时出错: {str(e)}")
+        
+        logger.info("程序已停止")
+        print("\n程序已停止，按回车键返回主菜单...")
+        input()
+
+def start_screenshot_task(monitor: 'GameMonitor', config: Dict[str, Any]) -> ScreenshotManager:
+    """启动截图任务
+    
+    Args:
+        monitor: 游戏监控器实例
+        config: 配置字典
+        
+    Returns:
+        ScreenshotManager: 截图管理器实例
+    """
+    screenshot_manager = ScreenshotManager(config)
+    screenshot_manager.start()
+    return screenshot_manager
+
+def test_screenshot(adb_path: Optional[str] = None, screenshot_dir: Optional[str] = None) -> None:
+    """测试ADB截图功能
+    
+    Args:
+        adb_path: ADB工具路径，如果为None则使用配置文件中的路径
+        screenshot_dir: 本地保存目录，如果为None则使用配置文件中的路径
+    """
+    logger = get_logger(__name__)
+    
+    try:
+        # 加载配置
+        config = config_manager
+        logger.info("配置加载成功")
+        
+        # 获取ADB路径
+        if adb_path is None:
+            adb_path = config.get('adb.path')
+        logger.info(f"ADB路径: {adb_path}")
+        
+        # 获取截图目录
+        if screenshot_dir is None:
+            screenshot_dir = config.get('adb.screenshot.local_temp_dir')
+        logger.info(f"截图目录: {screenshot_dir}")
+        
+        # 创建ADB助手
+        adb_helper = ADBHelper(adb_path)
+        logger.info(f"ADB助手初始化成功，路径: {adb_helper.adb_path}")
+        
+        # 确保截图目录存在
+        os.makedirs(screenshot_dir, exist_ok=True)
+        
+        # 尝试截图
+        logger.info("开始执行截图...")
+        screenshot_path = adb_helper.take_screenshot(screenshot_dir)
+        
+        if screenshot_path:
+            logger.info(f"截图成功，保存到: {screenshot_path}")
+            print(f"\n截图已保存到: {screenshot_path}")
+            return screenshot_path
+        else:
+            logger.error("截图失败")
+            print("\n截图失败，请检查ADB连接和配置")
+            return None
+            
+    except Exception as e:
+        logger.error(f"执行过程中出错: {str(e)}")
+        print(f"\n发生错误: {str(e)}")
+        return None
+
+def test_timer_screenshot(duration: int = 30) -> None:
+    """测试定时截图功能
+    
+    Args:
+        duration: 测试持续时间（秒）
+    """
+    import signal
+    
+    # 初始化变量
+    running = True
+    
+    # 处理 Ctrl+C 信号
+    def signal_handler(sig, frame):
+        """处理 Ctrl+C 信号"""
+        print("\n收到停止信号，正在停止...")
+        nonlocal running
+        running = False
+    
+    # 注册信号处理
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # 初始化日志
+    logger = get_logger(__name__)
+    
+    try:
+        # 加载配置
+        config_dict = config_manager.config
+        logger.info("配置加载成功")
+        
+        # 获取配置
+        adb_path = config_manager.get('adb.path')
+        logger.info(f"ADB路径: {adb_path}")
+        
+        screenshot_dir = config_manager.get('adb.screenshot.local_temp_dir')
+        logger.info(f"截图保存目录: {screenshot_dir}")
+        
+        # 设置截图间隔为 5 秒
+        config_dict['adb']['screenshot']['interval'] = 5.0
+        logger.info(f"设置截图间隔: 5秒")
+        
+        # 确保截图目录存在
+        os.makedirs(screenshot_dir, exist_ok=True)
+        
+        # 初始化游戏监控器
+        try:
+            from src.core.game.game_monitor import GameMonitor
+            monitor = GameMonitor(config_dict)
+            logger.info("游戏监控器初始化成功")
+        except Exception as e:
+            # 如果无法初始化 GameMonitor，创建一个模拟的监控器
+            logger.warning(f"无法初始化游戏监控器: {str(e)}")
+            
+            class MockMonitor:
+                def take_screenshot(self, local_dir=None):
+                    nonlocal adb_path, screenshot_dir
+                    if local_dir is None:
+                        local_dir = screenshot_dir
+                    adb_helper = ADBHelper(adb_path)
+                    return adb_helper.take_screenshot(local_dir)
+            
+            monitor = MockMonitor()
+            logger.info("使用模拟监控器")
+        
+        # 启动定时截图任务
+        logger.info("开始启动定时截图任务...")
+        screenshot_manager = start_screenshot_task(monitor, config_dict)
+        logger.info("定时截图任务已启动")
+        
+        # 运行指定时间后停止
+        logger.info(f"定时截图任务将运行{duration}秒后停止...")
+        print(f"\n定时截图任务已启动，每5秒执行一次。按 Ctrl+C 可提前停止...")
+        
+        start_time = time.time()
+        
+        while running and (time.time() - start_time) < duration:
+            # 每秒检查一次是否需要退出
+            time.sleep(1)
+            
+            # 显示运行时间
+            elapsed = int(time.time() - start_time)
+            remaining = duration - elapsed
+            if elapsed % 5 == 0 and elapsed > 0:
+                print(f"已运行 {elapsed} 秒，还剩 {remaining} 秒...")
+            
+        # 停止定时任务
+        logger.info("准备停止定时截图任务...")
+        screenshot_manager.stop()
+        logger.info("定时截图任务已停止")
+        
+        print("\n定时截图任务已完成。")
+        return True
+        
+    except Exception as e:
+        logger.error(f"执行过程中出错: {str(e)}")
+        print(f"\n发生错误: {str(e)}")
+        return False
+
 # 创建全局配置管理器和日志管理器实例
 config_manager = ConfigManager()
 log_manager = LogManager(config_manager)
@@ -560,4 +941,24 @@ log_manager = LogManager(config_manager)
 # 导出常用函数
 get_config = config_manager.get
 set_config = config_manager.set
-get_logger = log_manager.get_logger 
+get_logger = log_manager.get_logger
+
+if __name__ == "__main__":
+    """命令行接口，用于测试
+    
+    用法：
+        python -m src.utils.utils [options]
+    """
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="GameTheoryAI 工具测试")
+    parser.add_argument("--adb-path", help="ADB工具路径")
+    parser.add_argument("--screenshot-dir", help="截图保存目录")
+    parser.add_argument("--timer", action="store_true", help="测试定时截图功能")
+    parser.add_argument("--duration", type=int, default=30, help="定时测试持续时间（秒）")
+    args = parser.parse_args()
+    
+    if args.timer:
+        test_timer_screenshot(args.duration)
+    else:
+        test_screenshot(args.adb_path, args.screenshot_dir) 

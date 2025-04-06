@@ -18,9 +18,9 @@ directories:
 
 # ADB配置
 adb:
-  path: adb
+  path: /Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb
   screenshot:
-    local_temp_dir: data/screenshots
+    local_temp_dir: "/Users/mac/ai/temp/screenshots"
     remote_path: /sdcard/screenshot.png
     date_format: '%Y%m%d'
     interval: 1

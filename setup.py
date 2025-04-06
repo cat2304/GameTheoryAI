@@ -35,6 +35,8 @@ from setuptools.command.develop import develop
 from datetime import datetime
 import argparse
 import time
+import yaml
+import threading
 
 # 配置日志
 logging.basicConfig(
@@ -150,58 +152,64 @@ def setup_project():
 
 def run_project():
     """运行项目"""
-    # 添加项目根目录到 Python 路径
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    
-    # 导入必要的模块
-    from src.core.game.game_monitor import GameMonitor
-    from src.core.ai.ai_player import AIPlayer
-    
-    logger.info("GameTheoryAI 启动...")
-    
     try:
-        # 初始化游戏监控
-        monitor = GameMonitor()
-        logger.info("游戏监控初始化完成")
+        # 加载配置
+        config = load_config()
+        if not config:
+            raise Exception("配置加载失败")
+        logger.info("配置加载成功")
         
-        # 初始化AI决策
-        ai = AIPlayer()
-        logger.info("AI决策初始化完成")
+        # 验证环境
+        if not verify_environment():
+            raise Exception("环境验证失败")
+        logger.info("环境验证通过")
         
-        # 获取游戏状态
-        game_state = monitor.get_state()
-        logger.info("获取游戏状态完成")
+        # 导入并调用 game_monitor 中的 run_project
+        from src.core.game.game_monitor import run_project as game_run_project
+        game_run_project(config)
         
-        # 更新AI状态
-        ai.update_state(game_state)
-        logger.info("更新AI状态完成")
-        
-        # 使用AI决策
-        next_move = ai.decide_action()
-        logger.info(f"AI决策结果: {next_move}")
-        
-        # 启动监控
-        monitor.start()
-        logger.info("游戏监控已启动")
-        
-        print("\n游戏监控已启动，按 Ctrl+C 停止...")
-        
-        # 保持程序运行，直到收到停止信号
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("收到终止信号，正在停止...")
-            monitor.stop()
-            logger.info("程序已停止")
-            print("\n程序已停止，按回车键返回主菜单...")
-            input()
-            
     except Exception as e:
         logger.error(f"程序执行失败: {str(e)}")
         print(f"\n发生错误: {str(e)}")
         print("按回车键返回主菜单...")
         input()
+
+def load_config():
+    """加载配置文件"""
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), 'config', 'app_config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        logger.error(f"加载配置文件失败: {str(e)}")
+        return None
+
+def verify_environment():
+    """验证运行环境"""
+    try:
+        # 检查Python版本
+        if sys.version_info < (3, 8) or sys.version_info >= (3, 9):
+            logger.error("Python版本不兼容，需要3.8.x")
+            return False
+            
+        # 检查必要的包
+        required_packages = ['cv2', 'numpy', 'pytesseract']
+        for package in required_packages:
+            try:
+                __import__(package)
+            except ImportError:
+                logger.error(f"缺少必要的包: {package}")
+                return False
+                
+        # 检查配置文件
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), 'config', 'app_config.yaml')):
+            logger.error("配置文件不存在")
+            return False
+            
+        return True
+    except Exception as e:
+        logger.error(f"环境验证失败: {str(e)}")
+        return False
 
 def main():
     """主函数"""
