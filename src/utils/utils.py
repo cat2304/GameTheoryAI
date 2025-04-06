@@ -113,6 +113,8 @@ class ADBHelper:
         self.logger = log_manager.get_logger(__name__)
         self._screenshot_counter = 0  # 截图计数器，用于生成递增的文件名
         self._verify_adb()
+        # 初始化ADB设备会话
+        self._init_device_session()
     
     def _is_adb_available(self) -> bool:
         """检查ADB是否可用"""
@@ -130,6 +132,33 @@ class ADBHelper:
         except Exception as e:
             self.logger.error(f"ADB工具验证失败: {e}")
             raise
+    
+    def _init_device_session(self) -> None:
+        """初始化与设备的会话，提前检查设备连接状态"""
+        try:
+            # 检查设备连接状态
+            result = subprocess.run(
+                [self.adb_path, "devices"], 
+                capture_output=True, 
+                text=True,
+                check=True
+            )
+            
+            # 验证是否有设备连接
+            lines = result.stdout.strip().split('\n')
+            if len(lines) <= 1:
+                self.logger.warning("没有检测到已连接的设备")
+            else:
+                self.logger.info(f"检测到 {len(lines)-1} 个已连接设备")
+                
+            # 预热设备通信
+            subprocess.run(
+                [self.adb_path, "shell", "echo", "ready"],
+                capture_output=True,
+                check=False
+            )
+        except Exception as e:
+            self.logger.warning(f"设备会话初始化失败: {e}")
 
     def take_screenshot(self, local_dir: Optional[str] = None) -> str:
         """执行截图并保存到本地"""
@@ -148,11 +177,8 @@ class ADBHelper:
             filename = f"{self._screenshot_counter}.png"
             local_path = date_dir / filename
             
-            # 执行截图
-            self._execute_screenshot(remote_path)
-            
-            # 拉取文件
-            self._pull_screenshot(remote_path, local_path)
+            # 优化：使用一个命令同时完成截图和保存
+            self._execute_optimized_screenshot(remote_path, local_path)
             
             self.logger.info(f"截图已保存到: {local_path}")
             return str(local_path)
@@ -161,8 +187,59 @@ class ADBHelper:
             self.logger.error(f"截图过程中发生错误: {e}")
             raise
 
+    def _execute_optimized_screenshot(self, remote_path: str, local_path: Path) -> None:
+        """优化的截图执行函数，合并命令减少延迟"""
+        try:
+            # 直接使用管道处理，避免中间文件读写
+            self.logger.info("正在截图...")
+            
+            # 直接从设备捕获截图并保存到本地，避免中间步骤
+            process = subprocess.Popen(
+                [self.adb_path, "exec-out", "screencap", "-p"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            
+            # 直接将输出保存到文件
+            with open(local_path, 'wb') as f:
+                f.write(process.stdout.read())
+            
+            # 检查命令是否成功执行
+            return_code = process.wait()
+            if return_code != 0:
+                stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
+                self.logger.error(f"截图命令失败: {stderr_output}")
+                raise subprocess.CalledProcessError(return_code, "adb exec-out screencap", stderr_output)
+                
+        except Exception as e:
+            self.logger.error(f"执行ADB截图命令失败: {str(e)}")
+            # 失败时回退到传统方法
+            self._fallback_screenshot(remote_path, local_path)
+
+    def _fallback_screenshot(self, remote_path: str, local_path: Path) -> None:
+        """传统的截图方法，作为备选方案"""
+        try:
+            self.logger.warning("优化截图方法失败，使用传统方法...")
+            # 执行截图命令
+            subprocess.run(
+                [self.adb_path, "shell", "screencap", "-p", remote_path],
+                check=True,
+                capture_output=True
+            )
+            
+            # 拉取截图文件
+            self.logger.info("正在拉取截图...")
+            subprocess.run(
+                [self.adb_path, "pull", remote_path, str(local_path)],
+                check=True,
+                capture_output=True
+            )
+        except Exception as e:
+            self.logger.error(f"备选截图方法也失败: {str(e)}")
+            raise
+
     def _execute_screenshot(self, remote_path: str) -> None:
-        """执行设备截图命令"""
+        """执行设备截图命令 (旧方法，保留兼容性)"""
         try:
             self.logger.info("正在截图...")
             # 检查设备是否在线
@@ -194,14 +271,12 @@ class ADBHelper:
                 raise subprocess.CalledProcessError(
                     result.returncode, result.args, result.stdout, result.stderr
                 )
-            
-            time.sleep(config_manager.get('adb.screenshot.interval', 1))  # 等待截图完成
         except Exception as e:
             self.logger.error(f"执行ADB命令失败: {str(e)}")
             raise
 
     def _pull_screenshot(self, remote_path: str, local_path: Path) -> None:
-        """从设备拉取截图文件"""
+        """从设备拉取截图文件 (旧方法，保留兼容性)"""
         self.logger.info("正在拉取截图...")
         subprocess.run(
             [self.adb_path, "pull", remote_path, str(local_path)],
@@ -427,10 +502,21 @@ class ScreenshotManager:
         self.adb_helper = ADBHelper(config_manager.get_config()["adb"]["path"])
         self._screenshot_tasks = {}
         self._counter_lock = threading.Lock()
+        self._last_screenshot_time = 0  # 记录上次截图时间，控制速率
+        self._min_interval = 0.1  # 最小截图间隔（秒），防止过度截图
         
     def take_screenshot(self, save_dir: Optional[str] = None) -> Optional[str]:
         """获取单张截图"""
         try:
+            # 控制截图速率，避免过度截图
+            current_time = time.time()
+            with self._counter_lock:
+                if current_time - self._last_screenshot_time < self._min_interval:
+                    # 如果间隔太短，适当延迟
+                    time.sleep(self._min_interval - (current_time - self._last_screenshot_time))
+                self._last_screenshot_time = time.time()
+            
+            # 执行截图
             path = self.adb_helper.take_screenshot(local_dir=save_dir)
             self.logger.info(f"截图已保存: {path}")
             return path
@@ -449,21 +535,31 @@ class ScreenshotManager:
             self.logger.info(f"截图任务[{task_id}]已启动, 间隔: {interval}秒")
             
             try:
+                last_time = 0
                 while not stop_event.is_set():
                     # 检查是否达到最大次数
                     if max_count and count >= max_count:
                         self.logger.info(f"截图任务[{task_id}]已完成, 共截图{count}张")
                         break
-                        
-                    # 获取截图
-                    self.take_screenshot(save_dir=save_dir)
-                    count += 1
                     
-                    # 等待下一次截图
-                    for _ in range(interval):
-                        if stop_event.is_set():
+                    current_time = time.time()
+                    # 动态调整等待时间，确保截图间隔准确
+                    if current_time - last_time < interval:
+                        # 使用短间隔等待以提高响应性
+                        wait_time = min(0.5, interval - (current_time - last_time))
+                        if stop_event.wait(timeout=wait_time):
                             break
-                        time.sleep(1)
+                        continue
+                    
+                    # 获取截图
+                    screenshot_path = self.take_screenshot(save_dir=save_dir)
+                    if screenshot_path:
+                        count += 1
+                        last_time = time.time()
+                    else:
+                        # 截图失败时短暂等待
+                        time.sleep(0.5)
+                        
             except Exception as e:
                 self.logger.error(f"截图任务[{task_id}]执行失败: {str(e)}")
             finally:
@@ -563,9 +659,10 @@ def run_project(config: Dict[str, Any]) -> None:
         if screenshot_path:
             logger.info(f"初始截图已保存: {screenshot_path}")
         
-        # 启动定时截图任务
-        task_id = screenshot_manager.start_screenshot_task(interval=5)
-        logger.info(f"截图任务已启动: {task_id}")
+        # 启动定时截图任务，从配置读取间隔时间
+        interval = config.get("adb", {}).get("screenshot", {}).get("interval", 1)
+        task_id = screenshot_manager.start_screenshot_task(interval=interval)
+        logger.info(f"截图任务已启动: {task_id}, 间隔: {interval}秒")
         
         # 等待用户中断
         try:
@@ -642,8 +739,10 @@ if __name__ == "__main__":
             # 定时截图
             screenshot_manager = ScreenshotManager(config_manager)
             try:
-                task_id = screenshot_manager.start_screenshot_task()
-                print(f"截图任务已启动，按Ctrl+C停止...")
+                # 从配置读取间隔时间
+                interval = config.get("adb", {}).get("screenshot", {}).get("interval", 1)
+                task_id = screenshot_manager.start_screenshot_task(interval=interval)
+                print(f"截图任务已启动，间隔: {interval}秒，按Ctrl+C停止...")
                 
                 # 等待用户中断
                 while True:

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-from src.utils.utils import GameOCR
+from src.utils.utils import GameOCR, ADBHelper
 from typing import Dict, Any
 
 class GameMonitor:
@@ -50,6 +50,14 @@ class GameMonitor:
         # 初始化OCR
         self.ocr = GameOCR(config_path)
         
+        # 初始化ADB助手
+        try:
+            self.adb_helper = ADBHelper()
+            self.logger.info("ADB助手初始化成功")
+        except Exception as e:
+            self.logger.warning(f"ADB助手初始化失败: {e}")
+            self.adb_helper = None
+        
         # 游戏元素映射
         self.element_map = {
             "元素1": 1,
@@ -68,12 +76,34 @@ class GameMonitor:
         
         # 监控配置
         self.config = {
-            'interval': 5,  # 截图间隔（秒）
+            'interval': self._get_config_value(config_path, 'adb.screenshot.interval', 1),  # 从配置读取截图间隔
             'max_screenshots': 100,  # 最大截图数量
             'auto_analyze': True,  # 是否自动分析
         }
         
-        self.logger.info(f"游戏监控初始化完成，截图保存目录: {self.screenshot_dir}")
+        self.logger.info(f"游戏监控初始化完成，截图保存目录: {self.screenshot_dir}, 截图间隔: {self.config['interval']}秒")
+    
+    def _get_config_value(self, config_path, key, default):
+        """从配置文件获取值"""
+        try:
+            if config_path is None:
+                from src.utils.utils import get_config
+                return get_config(key, default)
+            else:
+                import yaml
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    # 处理点分隔的键
+                    value = config
+                    for k in key.split('.'):
+                        if k in value:
+                            value = value[k]
+                        else:
+                            return default
+                    return value
+        except Exception as e:
+            self.logger.warning(f"读取配置失败: {str(e)}，使用默认值: {default}")
+            return default
     
     def start(self):
         """启动游戏监控"""
@@ -109,13 +139,13 @@ class GameMonitor:
             str: 截图文件路径
         """
         try:
-            # 生成文件名
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"game_{timestamp}.png"
-            filepath = self.screenshot_dir / filename
-            
             # 在测试环境中创建一个空白图片
             if 'PYTEST_CURRENT_TEST' in os.environ:
+                # 生成文件名
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"game_{timestamp}.png"
+                filepath = self.screenshot_dir / filename
+                
                 # 创建一个空白图片
                 test_image = np.zeros((600, 800, 3), dtype=np.uint8)
                 cv2.putText(test_image, "Test Image", (50, 50), 
@@ -124,9 +154,33 @@ class GameMonitor:
                 self.logger.info(f"测试模式：创建测试图片: {filepath}")
                 return str(filepath)
             
-            # 使用ADB截图
-            subprocess.run(['adb', 'shell', 'screencap', '-p', '/sdcard/screenshot.png'])
-            subprocess.run(['adb', 'pull', '/sdcard/screenshot.png', str(filepath)])
+            # 使用ADB助手截图（如果可用）
+            if self.adb_helper:
+                return self.adb_helper.take_screenshot(str(self.screenshot_dir))
+            
+            # 如果ADB助手不可用，使用直接命令
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"game_{timestamp}.png"
+            filepath = self.screenshot_dir / filename
+            
+            # 使用优化的截图命令
+            process = subprocess.Popen(
+                ['adb', 'exec-out', 'screencap', '-p'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            
+            # 直接保存到文件
+            with open(filepath, 'wb') as f:
+                f.write(process.stdout.read())
+            
+            # 检查命令是否成功
+            if process.wait() != 0:
+                # 失败时回退到传统方法
+                self.logger.warning("优化截图方法失败，使用传统方法...")
+                subprocess.run(['adb', 'shell', 'screencap', '-p', '/sdcard/screenshot.png'])
+                subprocess.run(['adb', 'pull', '/sdcard/screenshot.png', str(filepath)])
             
             self.logger.info(f"截图已保存: {filepath}")
             return str(filepath)
@@ -155,7 +209,12 @@ class GameMonitor:
                         
                         # 如果开启自动分析，则分析截图
                         if self.config['auto_analyze']:
-                            self.analyze_screenshot(filepath)
+                            # 异步分析截图，避免阻塞监控循环
+                            threading.Thread(
+                                target=self.analyze_screenshot,
+                                args=(filepath,),
+                                daemon=True
+                            ).start()
                     
                     # 检查是否达到最大截图数
                     if self.config['max_screenshots'] > 0 and screenshot_count >= self.config['max_screenshots']:
