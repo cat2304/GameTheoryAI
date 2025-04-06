@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-from src.utils.ocr import GameOCR
+from src.utils.ocr import OCR
 from src.utils.utils import ADBHelper
 from typing import Dict, Any
 
@@ -65,7 +65,7 @@ class GameMonitor:
         
         # 初始化OCR
         try:
-            self.ocr = GameOCR(self.config_path)
+            self.ocr = OCR()
             self.logger.info("OCR初始化成功")
         except Exception as e:
             self.logger.warning(f"OCR初始化失败: {e}")

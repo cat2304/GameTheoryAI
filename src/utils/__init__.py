@@ -12,17 +12,15 @@ from .utils import (
 )
 
 from .ocr import (
-    GameOCR,
-    handle_ocr_test,
-    find_latest_screenshot
+    OCR,
+    handle_ocr_test
 )
 
 __all__ = [
     'ConfigManager',
     'LogManager',
     'ADBHelper',
-    'GameOCR',
+    'OCR',
     'get_logger',
-    'handle_ocr_test',
-    'find_latest_screenshot'
+    'handle_ocr_test'
 ]
