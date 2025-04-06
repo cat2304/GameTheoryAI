@@ -13,6 +13,7 @@ import pytesseract
 from concurrent.futures import ThreadPoolExecutor
 import uuid
 import io
+import logging.handlers  # 添加缺失的导入
 try:
     import pngquant  # 尝试导入pngquant库
     PNGQUANT_AVAILABLE = True
@@ -897,75 +898,88 @@ except Exception as e:
     print(f"初始化配置或日志失败: {str(e)}")
     sys.exit(1)
 
-# 修改全局get_logger函数
+# 获取预配置的日志记录器
 def get_logger(name: str) -> logging.Logger:
     """获取预配置的日志记录器"""
     return log_manager.get_logger(name)
 
 def main():
-    """主函数（优化版）"""
-    config_manager, screenshot_manager, game_ocr = initialize_services()
-    
-    # 获取默认任务配置
-    default_task = config_manager.get('app.default_task', 0)
-    
-    # 如果配置了默认任务且有效，直接执行
-    if default_task and 1 <= default_task <= 7:
-        logger = get_logger(__name__)
-        logger.info(f"执行默认任务: {default_task}")
+    """主函数"""
+    try:
+        # 初始化服务
+        config_manager, screenshot_manager, game_ocr = initialize_services()
         
-        try:
-            if default_task == 1:
-                handle_device_check(screenshot_manager)
-            elif default_task == 2:
-                handle_adb_server_start(config_manager, screenshot_manager)
-            elif default_task == 3:
-                handle_single_screenshot(screenshot_manager)
-            elif default_task == 4:
-                handle_scheduled_screenshot(config_manager, screenshot_manager)
-            elif default_task == 5:
-                handle_ocr_test(game_ocr, config_manager)
-            elif default_task == 6:
-                handle_show_config(config_manager)
-            elif default_task == 7:
-                handle_batch_ocr(game_ocr, config_manager)
-        except Exception as e:
-            logger.error(f"默认任务执行失败: {str(e)}", exc_info=True)
-            print(f"\n默认任务执行失败: {str(e)}")
-            print("将显示主菜单...")
-    
-    # 进入主循环
-    while True:
-        try:
-            choice = display_main_menu()
+        # 创建菜单项
+        menu_items = [
+            {'name': '检查设备连接状态', 'handler': lambda: handle_device_check(screenshot_manager)},
+            {'name': '启动ADB服务', 'handler': lambda: handle_adb_server_start(config_manager, screenshot_manager)},
+            {'name': '执行单次截图', 'handler': lambda: handle_single_screenshot(screenshot_manager)},
+            {'name': '启动定时截图任务', 'handler': lambda: handle_scheduled_screenshot(config_manager, screenshot_manager)},
+            {'name': '单张OCR识别', 'handler': lambda: handle_ocr_test(game_ocr, config_manager)},
+            {'name': '打印当前配置', 'handler': lambda: handle_show_config(config_manager)},
+            {'name': '批量OCR识别', 'handler': lambda: handle_batch_ocr(game_ocr, config_manager)}
+        ]
+        
+        # 获取默认任务配置
+        default_task = config_manager.get('app.default_task', 0)
+        
+        # 如果配置了默认任务且有效，直接执行
+        if default_task and 1 <= default_task <= 7:
+            logger = get_logger(__name__)
+            logger.info(f"执行默认任务: {default_task}")
             
-            if choice.lower() in ('q', 'quit'):
+            try:
+                if default_task == 1:
+                    handle_device_check(screenshot_manager)
+                elif default_task == 2:
+                    handle_adb_server_start(config_manager, screenshot_manager)
+                elif default_task == 3:
+                    handle_single_screenshot(screenshot_manager)
+                elif default_task == 4:
+                    handle_scheduled_screenshot(config_manager, screenshot_manager)
+                elif default_task == 5:
+                    handle_ocr_test(game_ocr, config_manager)
+                elif default_task == 6:
+                    handle_show_config(config_manager)
+                elif default_task == 7:
+                    handle_batch_ocr(game_ocr, config_manager)
+            except Exception as e:
+                logger = get_logger(__name__)
+                logger.error(f"默认任务执行失败: {str(e)}", exc_info=True)
+                print(f"\n默认任务执行失败: {str(e)}")
+                print("将显示主菜单...")
+        
+        # 主循环
+        while True:
+            print("\n==== 游戏辅助工具 ====")
+            for i, item in enumerate(menu_items, 1):
+                print(f"{i}. {item['name']}")
+            print("====================")
+            
+            choice = input("请选择功能 (输入q退出): ").strip()
+            
+            if choice.lower() == 'q':
                 print("\n正在退出程序...")
-                sys.exit(0)
+                break
                 
-            if choice == "1":
-                handle_device_check(screenshot_manager)
-            elif choice == "2":
-                handle_adb_server_start(config_manager, screenshot_manager)
-            elif choice == "3":
-                handle_single_screenshot(screenshot_manager)
-            elif choice == "4":
-                handle_scheduled_screenshot(config_manager, screenshot_manager)
-            elif choice == "5":
-                handle_ocr_test(game_ocr, config_manager)
-            elif choice == "6":
-                handle_show_config(config_manager)
-            elif choice == "7":
-                handle_batch_ocr(game_ocr, config_manager)
-            else:
-                print("无效的输入，请输入1-7之间的数字")
+            try:
+                choice = int(choice)
+                if 1 <= choice <= len(menu_items):
+                    menu_items[choice-1]['handler']()
+                else:
+                    print("无效的选择，请重试")
+            except ValueError:
+                print("无效的输入，请重试")
                 
-        except KeyboardInterrupt:
-            handle_keyboard_interrupt(screenshot_manager)
-            break
-        except Exception as e:
-            handle_unexpected_error(e)
-            break
+    except KeyboardInterrupt:
+        handle_keyboard_interrupt(screenshot_manager)
+    except Exception as e:
+        logger = get_logger(__name__)
+        logger.error(f"程序运行出错: {str(e)}", exc_info=True)
+        print(f"\n程序运行出错: {str(e)}")
+    finally:
+        if screenshot_manager:
+            screenshot_manager.stop_all_tasks()
 
 # 以下是拆分出的子函数 --------------------------------------------
 
