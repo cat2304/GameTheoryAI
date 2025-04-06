@@ -12,6 +12,12 @@ from PIL import Image
 import pytesseract
 from concurrent.futures import ThreadPoolExecutor
 import uuid
+import io
+try:
+    import pngquant  # 尝试导入pngquant库
+    PNGQUANT_AVAILABLE = True
+except ImportError:
+    PNGQUANT_AVAILABLE = False
 
 class ConfigManager:
     """配置管理器"""
@@ -177,42 +183,112 @@ class ADBHelper:
             filename = f"{self._screenshot_counter}.png"
             local_path = date_dir / filename
             
-            # 优化：使用一个命令同时完成截图和保存
+            # 使用内存直接压缩的方式截图 (不依赖pngquant)
+            compressed_path = self._direct_memory_compressed_screenshot(local_path)
+            if compressed_path:
+                self.logger.info(f"截图已直接压缩并保存到: {compressed_path}")
+                return str(compressed_path)
+            
+            # 如果直接压缩失败，回退到普通截图
+            self.logger.debug("直接压缩失败，使用普通截图方式")
             self._execute_optimized_screenshot(remote_path, local_path)
             
-            self.logger.info(f"截图已保存到: {local_path}")
-            return str(local_path)
+            # 压缩图片以减小文件大小
+            compressed_path = self._compress_image(local_path)
+            
+            self.logger.info(f"截图已保存到: {compressed_path}")
+            return str(compressed_path)
             
         except Exception as e:
             self.logger.error(f"截图过程中发生错误: {e}")
             raise
-
-    def _execute_optimized_screenshot(self, remote_path: str, local_path: Path) -> None:
-        """优化的截图执行函数，合并命令减少延迟"""
+    
+    def _direct_memory_compressed_screenshot(self, output_path: Path) -> Optional[Path]:
+        """通过内存操作直接获取并压缩截图，无需中间文件"""
         try:
-            # 直接使用管道处理，避免中间文件读写
-            self.logger.info("正在截图...")
+            self.logger.debug("获取截图并直接在内存中压缩...")
             
-            # 直接从设备捕获截图并保存到本地，避免中间步骤
+            # 获取截图数据到内存
             process = subprocess.Popen(
                 [self.adb_path, "exec-out", "screencap", "-p"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
             
-            # 直接将输出保存到文件
-            with open(local_path, 'wb') as f:
-                f.write(process.stdout.read())
+            stdout_data, stderr_data = process.communicate(timeout=5)
             
-            # 检查命令是否成功执行
-            return_code = process.wait()
-            if return_code != 0:
-                stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
-                self.logger.error(f"截图命令失败: {stderr_output}")
-                raise subprocess.CalledProcessError(return_code, "adb exec-out screencap", stderr_output)
+            if process.returncode != 0:
+                stderr_output = stderr_data.decode('utf-8', errors='ignore')
+                self.logger.warning(f"获取截图数据失败: {stderr_output}")
+                return None
+            
+            # 使用PIL处理图像
+            with io.BytesIO(stdout_data) as data:
+                # 读取原始图像
+                image = Image.open(data)
+                original_size = len(stdout_data)
+                
+                # 准备输出路径
+                jpg_path = output_path.with_suffix('.jpg')
+                
+                # 检查是否为RGBA模式
+                if image.mode == 'RGBA':
+                    # 转换RGBA到RGB（用白色背景）
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    background.paste(image, mask=image.split()[3])  # 3是alpha通道
+                    image = background
+                
+                # 使用PIL的内置压缩功能直接保存为高质量JPEG
+                image.save(jpg_path, format='JPEG', quality=85, optimize=True)
+                
+                # 检查压缩后大小
+                compressed_size = os.path.getsize(jpg_path)
+                compression_ratio = compressed_size / original_size
+                
+                self.logger.info(f"截图内存直接压缩: {original_size/1024:.1f}KB -> {compressed_size/1024:.1f}KB ({compression_ratio:.1%})")
+                return jpg_path
                 
         except Exception as e:
-            self.logger.error(f"执行ADB截图命令失败: {str(e)}")
+            self.logger.warning(f"内存直接压缩截图失败: {e}")
+            return None
+
+    def _execute_optimized_screenshot(self, remote_path: str, local_path: Path) -> None:
+        """优化的截图执行函数，合并命令减少延迟"""
+        try:
+            # 直接使用管道处理，避免中间文件读写
+            self.logger.debug("正在截图...")  # 降低日志级别，减少输出
+            
+            # 方法1: 直接从设备捕获截图并保存到本地
+            # 使用超时控制，避免长时间等待
+            process = subprocess.Popen(
+                [self.adb_path, "exec-out", "screencap", "-p"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1024*1024  # 使用更大的缓冲区
+            )
+            
+            # 设置超时时间为5秒（增加超时时间避免超时错误）
+            try:
+                stdout_data, stderr_data = process.communicate(timeout=5)
+                
+                # 直接将数据写入文件
+                with open(local_path, 'wb') as f:
+                    f.write(stdout_data)
+                
+                # 检查命令是否成功执行
+                if process.returncode != 0:
+                    stderr_output = stderr_data.decode('utf-8', errors='ignore')
+                    self.logger.error(f"截图命令失败: {stderr_output}")
+                    raise subprocess.CalledProcessError(process.returncode, "adb exec-out screencap", stderr_output)
+                    
+            except subprocess.TimeoutExpired:
+                # 超时后终止进程
+                process.kill()
+                self.logger.warning("截图命令超时，尝试备选方法")
+                raise TimeoutError("截图命令执行超时")
+                
+        except Exception as e:
+            self.logger.warning(f"优化截图方法失败: {str(e)}")
             # 失败时回退到传统方法
             self._fallback_screenshot(remote_path, local_path)
 
@@ -283,6 +359,57 @@ class ADBHelper:
             check=True,
             capture_output=True
         )
+
+    def _compress_image(self, image_path: Path) -> Path:
+        """压缩图片以减小文件大小，同时保持图像质量"""
+        try:
+            # 检查原图大小
+            original_size = os.path.getsize(image_path)
+            
+            # 打开图片
+            img = Image.open(image_path)
+            
+            # 如果是RGBA模式，转换为RGB模式
+            if img.mode == 'RGBA':
+                # 创建白色背景
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                # 将原图合并到背景上
+                background.paste(img, mask=img.split()[3])  # 3是alpha通道
+                img = background
+            
+            # 先将原图备份
+            original_path = image_path.with_suffix('.original.png')
+            os.rename(image_path, original_path)
+            
+            # 压缩为高质量JPEG (比PNG小很多但保持较好质量)
+            compressed_path = image_path.with_suffix('.jpg')
+            img.save(compressed_path, format='JPEG', quality=85, optimize=True)
+            
+            # 获取压缩后的大小
+            compressed_size = os.path.getsize(compressed_path)
+            
+            # 计算压缩比
+            compression_ratio = compressed_size / original_size
+            
+            # 如果新文件显著小于原文件，则使用压缩版本
+            if compression_ratio <= 0.7:  # 节省30%以上空间才使用压缩版
+                self.logger.info(f"图片已压缩: {original_size/1024:.1f}KB -> {compressed_size/1024:.1f}KB ({compression_ratio:.1%})")
+                os.remove(original_path)  # 删除原始备份
+                return compressed_path
+            else:
+                # 压缩效果不明显，恢复原始文件
+                os.remove(compressed_path)
+                os.rename(original_path, image_path)
+                self.logger.debug(f"压缩效果不明显 ({compression_ratio:.1%})，保留原始图片")
+                return image_path
+                
+        except Exception as e:
+            self.logger.warning(f"压缩图片失败: {e}")
+            # 如果有原始备份文件，恢复它
+            original_backup = image_path.with_suffix('.original.png')
+            if original_backup.exists():
+                os.rename(original_backup, image_path)
+            return image_path  # 如果压缩失败，返回原始路径
 
 class GameOCR:
     """游戏OCR工具类"""
