@@ -561,5 +561,33 @@ def handle_ocr_test():
         else:
             print("无效的选择，请重新输入")
 
+def save_recognition_result(image_path, result, summary_file):
+    """保存识别结果到JSON文件"""
+    try:
+        # 准备要保存的数据
+        data = {
+            "filename": os.path.basename(image_path),
+            "timestamp": datetime.now().isoformat(),
+            "result": {
+                "elements": result["elements"],
+                "image_info": {
+                    "path": result["image_info"]["path"],
+                    "processing_time": result["image_info"]["processing_time"],
+                    "elements_count": result["image_info"]["elements_count"],
+                    "image_size": result["image_info"]["image_size"]
+                }
+            }
+        }
+        
+        # 将结果追加到文件
+        with open(summary_file, 'a', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+            f.write('\n')  # 添加换行符，使每个结果占一行
+            
+        logger.info(f"识别结果已保存到: {summary_file}")
+    except Exception as e:
+        logger.error(f"保存识别结果失败: {str(e)}")
+        raise
+
 if __name__ == "__main__":
     handle_ocr_test() 
