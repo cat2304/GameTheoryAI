@@ -1,30 +1,12 @@
-# 应用全局配置
-
-# 应用配置
-app:
-  # 默认执行的任务（1-5，0表示显示菜单）
-  # 1: 检查设备连接状态
-  # 2: 启动ADB服务
-  # 3: 执行单次截图
-  # 4: 启动定时截图任务
-  # 5: 打印当前配置
-  default_task: 5
+# OCR系统配置
 
 # 环境配置
 environment:
-  python_version: "3.8"  # Python版本要求
-  tesseract_path: "/usr/local/bin/tesseract"  # Tesseract OCR路径
-  screenshots_dir: "/Users/mac/ai/temp/screenshots"  # 截图保存目录
-  data_dir: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
-  log_dir: "/Users/mac/cursor/GameTheoryAI/data/logs"  # 日志根目录
-
-# 目录结构配置
-directories:
-  data:
-    root: "/Users/mac/cursor/GameTheoryAI/data"  # 数据根目录
-    tententimg: "/Users/mac/cursor/GameTheoryAI/data/tententimg"  # 数据根目录
-    database: "/Users/mac/cursor/GameTheoryAI/data/database"  # 数据库目录
-    cache: "/Users/mac/cursor/GameTheoryAI/data/cache"  # 缓存目录
+  python_version: "3.8"
+  tesseract_path: "/usr/local/bin/tesseract"
+  screenshots_dir: "/Users/mac/ai/temp/screenshots"
+  data_dir: "/Users/mac/cursor/GameTheoryAI/data"
+  log_dir: "/Users/mac/cursor/GameTheoryAI/logs"
 
 # 日志级别配置
 log_levels:
@@ -32,112 +14,70 @@ log_levels:
   INFO: 20
   WARNING: 30
   ERROR: 40
-  # 模块日志级别
+  CRITICAL: 50
   default: "INFO"
-  adb: "INFO"
+  adb: "INFO" 
   screenshot: "INFO"
   ocr: "DEBUG"
 
-# ADB配置
-adb:
-  path: /Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb
-  screenshot:
-    local_temp_dir: "/Users/mac/ai/temp/screenshots"
-    remote_path: /sdcard/screenshot.png
-    date_format: '%Y%m%d'
-    interval: 1
-    clear_target_dir: True  # 每次任务执行前是否清空目标文件夹
-
-# OCR配置
-ocr:
-  preprocessing:
-    blur_kernel: [3, 3]
-    threshold_min: 200
-    threshold_max: 255
-    canny_min: 30
-    canny_max: 120
-    dilate_kernel: [2, 2]
-    dilate_iterations: 1
-    debug_output: true
-  detection:
-    min_area: 3000
-    max_area: 50000
-    aspect_ratio_min: 0.6
-    aspect_ratio_max: 1.5
-    min_width: 30
-    max_width: 300
-    y_threshold: 150
-    expected_elements: 13
-    element_gap: 5
-    merge_threshold: 20
-    max_retries: 3
-    threshold_reduction: 0.8
-  recognition:
-    text_area_ratio: 0.4
-    text_threshold: 150
-    red_threshold: 0.02
-    green_threshold: 0.02
-    circle_threshold: 0.7
-    debug_features: true
-
-# 游戏配置
-game:
-  name: "麻将"  # 游戏名称
-  version: "1.0.0"  # 游戏版本
-  regions:
-    hand_tiles: [100, 200, 300, 400]  # 手牌区域坐标 [x1, y1, x2, y2]
-    discarded_tiles: [500, 200, 600, 400]  # 弃牌区域坐标 [x1, y1, x2, y2]
-    score: [700, 100, 800, 150]  # 分数区域坐标 [x1, y1, x2, y2]
-  tile_types:
-    - "万"
-    - "筒"
-    - "条"
-    - "风"
-    - "箭"
+# 目录配置
+screenshots_dir: "/Users/mac/ai/temp/screenshots/20250407"  # 截图目录
+template_dir: "data/templates"  # 模板目录
+debug_dir: "output/debug"  # 调试输出目录
+output_dir: "output"  # 输出目录
+log_dir: "logs"  # 日志目录
 
 # 日志配置
-logging:
-  level: INFO
-  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  file:
-    enabled: true
-    dir: data/logs
-    name_format: '{name}_%Y%m%d.log'
+log_level: "INFO"
 
-# 界面配置
-ui:
-  window:
-    title: "麻将AI助手"  # 窗口标题
-    width: 800  # 窗口宽度
-    height: 600  # 窗口高度
-  theme:
-    primary_color: "#4CAF50"  # 主题主色
-    secondary_color: "#8BC34A"  # 主题次色
-    background_color: "#F5F5F5"  # 背景色
-    text_color: "#333333"  # 文字颜色
-  font:
-    family: "Microsoft YaHei"  # 字体
-    size: 12  # 字体大小
+# 图片处理配置
+image_extensions:                                         # 支持的图片格式
+  - "*.png"
+  - "*.jpg"
 
-# 性能配置
-performance:
-  max_threads: 4  # 最大线程数
-  queue_size: 100  # 队列大小
-  batch_size: 10  # 批处理大小
-  cache_size: 1000  # 缓存大小
-  timeout: 30  # 超时时间（秒）
+# 预处理参数
+preprocess_params:
+  sharpen_kernel: [[-1,-1,-1], [-1,9,-1], [-1,-1,-1]]  # 锐化核
+  clahe_clip_limit: 3.0  # CLAHE对比度限制
+  clahe_tile_size: 8  # CLAHE瓦片大小
+  bilateral_d: 9  # 双边滤波直径
+  bilateral_sigma_color: 75  # 双边滤波颜色标准差
+  bilateral_sigma_space: 75  # 双边滤波空间标准差
+  adaptive_threshold_block_size: 15  # 自适应阈值块大小
+  adaptive_threshold_c: 5  # 自适应阈值常数
 
-# 数据存储配置
-storage:
-  database:
-    type: "sqlite"  # 数据库类型
-    path: "/Users/mac/cursor/GameTheoryAI/data/database/game.db"  # 数据库路径
-  screenshots:
-    enabled: true  # 是否保存截图
-    max_count: 1000  # 最大保存数量
-    compression: true  # 是否压缩
-    compression_quality: 80  # 压缩质量
-  results:
-    enabled: true  # 是否保存结果
-    format: "json"  # 结果格式
-    path: "/Users/mac/cursor/GameTheoryAI/data/results"  # 结果保存路径
+# 检测参数
+detection_params:
+  min_area: 50  # 降低最小面积
+  max_area: 20000  # 增加最大面积
+  min_aspect_ratio: 0.3  # 降低最小宽高比
+  max_aspect_ratio: 3.0  # 增加最大宽高比
+
+# OCR参数
+ocr_params:
+  confidence_threshold: 25  # 降低置信度阈值
+  template_match_threshold: 0.6  # 降低模板匹配阈值
+
+# 名称映射
+name_map:
+  "1": "一"
+  "2": "二"
+  "3": "三"
+  "4": "四"
+  "5": "五"
+  "6": "六"
+  "7": "七"
+  "8": "八"
+  "9": "九"
+
+# 数字映射
+number_map:
+  "一": 1
+  "二": 2
+  "三": 3
+  "四": 4
+  "五": 5
+  "六": 6
+  "七": 7
+  "八": 8
+  "九": 9
