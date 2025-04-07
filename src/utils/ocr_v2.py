@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 import json
 import logging.handlers
+import glob
 import time
 
 # 导入配置管理器
@@ -82,7 +83,7 @@ class OCR:
         self.ocr_params = {
             'lang': 'chi_sim',
             'config': '--psm 6 --oem 3',
-            'whitelist': '0123456789万条筒东南西北中发白'
+            'whitelist': '0123456789万条东南西北中发白'
         }
         
         # 名称映射
@@ -420,133 +421,145 @@ class OCR:
         except Exception as e:
             self.logger.error(f"加载模板失败: {e}", exc_info=True)
 
-def get_latest_image(screenshots_dir: str) -> str:
-    """获取最新的截图文件"""
-    try:
-        # 确保目录存在
-        if not os.path.exists(screenshots_dir):
-            raise FileNotFoundError(f"截图目录不存在: {screenshots_dir}")
+    def batch_recognize_images(self, input_dir: str, output_dir: Optional[str] = None) -> Dict[str, Dict]:
+        """批量识别目录中的所有图片
+        
+        Args:
+            input_dir: 输入图片目录路径
+            output_dir: 输出结果目录路径，如果为None则使用输入目录
             
+        Returns:
+            Dict[str, Dict]: 包含所有图片识别结果的字典，key为图片文件名，value为识别结果
+        """
+        if output_dir is None:
+            output_dir = input_dir
+            
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 获取所有图片文件
+        image_files = []
+        for ext in ['*.png', '*.jpg', '*.jpeg']:
+            image_files.extend(glob.glob(os.path.join(input_dir, ext)))
+            
+        if not image_files:
+            self.logger.warning(f"在目录 {input_dir} 中没有找到图片文件")
+            return {}
+            
+        self.logger.info(f"找到 {len(image_files)} 个图片文件")
+        
+        # 处理每张图片
+        results = []
+        summary_path = os.path.join(output_dir, "recognition_summary.json")
+        
+        for image_path in image_files:
+            try:
+                self.logger.info(f"正在处理图片: {image_path}")
+                result = self.recognize_file(image_path)
+                
+                # 构建识别结果
+                recognition_data = {
+                    "filename": os.path.basename(image_path),
+                    "timestamp": datetime.now().isoformat(),
+                    "result": result
+                }
+                
+                # 将结果追加到文件（每个结果占一行）
+                with open(summary_path, 'a', encoding='utf-8') as f:
+                    json.dump(recognition_data, f, ensure_ascii=False, separators=(',', ':'))
+                    f.write('\n')  # 添加换行符
+                
+                results.append(recognition_data)
+                
+            except Exception as e:
+                self.logger.error(f"处理图片 {image_path} 时出错: {str(e)}")
+                continue
+                
+        self.logger.info(f"批量识别完成，共处理 {len(image_files)} 张图片")
+        self.logger.info(f"汇总结果已保存到: {summary_path}")
+        
+        return results
+
+def get_latest_image(screenshots_dir: str) -> Optional[str]:
+    """获取最新的截图文件
+    
+    Args:
+        screenshots_dir: 截图目录路径
+        
+    Returns:
+        Optional[str]: 最新的截图文件路径，如果没有找到则返回None
+    """
+    try:
         # 获取所有PNG文件
-        png_files = [f for f in os.listdir(screenshots_dir) if f.endswith('.png')]
+        png_files = glob.glob(os.path.join(screenshots_dir, "*.png"))
         if not png_files:
-            raise FileNotFoundError(f"截图目录中没有PNG文件: {screenshots_dir}")
+            logging.warning(f"截图目录中没有PNG文件: {screenshots_dir}")
+            return None
             
         # 按修改时间排序
-        png_files.sort(key=lambda x: os.path.getmtime(os.path.join(screenshots_dir, x)), reverse=True)
+        latest_file = max(png_files, key=os.path.getmtime)
+        return latest_file
         
-        # 返回最新的文件路径
-        return os.path.join(screenshots_dir, png_files[0])
     except Exception as e:
-        logging.error(f"获取最新截图失败: {e}", exc_info=True)
-        raise
+        logging.error(f"获取最新截图失败: {e}")
+        return None
 
 def handle_ocr_test():
     """处理OCR测试"""
-    try:
-        # 初始化OCR实例
-        ocr = OCR()
+    # 获取配置
+    config_manager = ConfigManager("config/app_config.yaml")
+    config = config_manager.get_config()
+    screenshots_dir = config.get("screenshots_dir", "/Users/mac/ai/temp/screenshots/20250407")
+    
+    # 创建OCR实例
+    ocr = OCR(debug_mode=True)
+    
+    while True:
+        print("\n=== OCR测试菜单 ===")
+        print("1. 识别最新一张图片")
+        print("2. 批量识别所有图片")
+        print("0. 退出")
         
-        # 获取最新的截图文件
-        screenshots_dir = "/Users/mac/ai/temp/screenshots/20250407"
-        latest_img = get_latest_image(screenshots_dir)
+        choice = input("请选择操作 (0-2): ")
         
-        # 检查文件是否存在
-        if not os.path.exists(latest_img):
-            raise FileNotFoundError(f"图片文件不存在: {latest_img}")
+        if choice == "1":
+            # 获取最新的截图
+            latest_image = get_latest_image(screenshots_dir)
+            if not latest_image:
+                print("没有找到截图文件")
+                continue
+                
+            print(f"\n正在识别最新图片: {latest_image}")
+            # 识别图片
+            result = ocr.recognize_file(latest_image)
             
-        # 检查文件是否可读
-        if not os.access(latest_img, os.R_OK):
-            raise PermissionError(f"无法读取图片文件: {latest_img}")
-        
-        # 读取图片
-        image = cv2.imread(latest_img)
-        if image is None:
-            raise ValueError(f"无法读取图片文件，可能文件已损坏: {latest_img}")
-            
-        # 获取图片尺寸
-        height, width = image.shape[:2]
-        
-        # 执行OCR识别
-        start_time = time.time()
-        result = ocr.recognize_file(latest_img)
-        processing_time = round(time.time() - start_time, 2)
-        
-        # 按位置分组
-        tiles_by_position = group_tiles_by_position(result['elements'], width, height)
-        
-        # 构建输出JSON
-        output = {
-            "table_status": {
-                "center_display": None,
-                "timer": None,
-                "tiles_by_position": tiles_by_position
-            },
-            "image_info": {
-                "path": os.path.basename(latest_img),
-                "processing_time": processing_time,
-                "elements_count": len(result['elements']),
-                "image_size": {
-                    "width": width,
-                    "height": height
-                }
+            # 构建识别结果
+            recognition_data = {
+                "filename": os.path.basename(latest_image),
+                "timestamp": datetime.now().isoformat(),
+                "result": result
             }
-        }
-        
-        # 保存结果
-        output_path = latest_img.rsplit('.', 1)[0] + '.json'
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(output, f, ensure_ascii=False, indent=2)
             
-        print(f"识别结果已保存到: {output_path}")
-        
-    except FileNotFoundError as e:
-        logging.error(f"文件不存在: {e}")
-        raise
-    except PermissionError as e:
-        logging.error(f"权限错误: {e}")
-        raise
-    except ValueError as e:
-        logging.error(f"图片读取错误: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"OCR测试失败: {e}", exc_info=True)
-        raise
-
-def group_tiles_by_position(elements, width, height):
-    """按位置分组元素"""
-    result = {
-        "bottom": [],
-        "right": [],
-        "top": [],
-        "left": [],
-        "center": []
-    }
-    
-    for element in elements:
-        if 'box' not in element or 'name' not in element:
-            continue
+            # 将结果追加到文件（每个结果占一行）
+            summary_path = os.path.join(screenshots_dir, "recognition_summary.json")
+            with open(summary_path, 'a', encoding='utf-8') as f:
+                json.dump(recognition_data, f, ensure_ascii=False, separators=(',', ':'))
+                f.write('\n')  # 添加换行符
+                
+            print(f"识别结果已保存到: {summary_path}")
             
-        x = (element['box'][0] + element['box'][2]) / 2
-        y = (element['box'][1] + element['box'][3]) / 2
-        
-        # 计算相对位置
-        rel_x = x / width
-        rel_y = y / height
-        
-        # 根据相对位置分类
-        if rel_y > 0.7:
-            result["bottom"].append(element["name"])
-        elif rel_x > 0.7:
-            result["right"].append(element["name"])
-        elif rel_y < 0.3:
-            result["top"].append(element["name"])
-        elif rel_x < 0.3:
-            result["left"].append(element["name"])
+        elif choice == "2":
+            print("\n开始批量识别测试...")
+            batch_results = ocr.batch_recognize_images(screenshots_dir)
+            print(f"批量识别完成，共处理 {len(batch_results)} 张图片")
+            print(f"汇总结果已保存到: {os.path.join(screenshots_dir, 'recognition_summary.json')}")
+            
+        elif choice == "0":
+            print("退出程序")
+            break
+            
         else:
-            result["center"].append(element["name"])
-    
-    return result
+            print("无效的选择，请重新输入")
 
 if __name__ == "__main__":
     handle_ocr_test() 

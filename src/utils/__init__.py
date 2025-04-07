@@ -11,7 +11,7 @@ from .utils import (
     get_logger
 )
 
-from .ocr import (
+from .ocr_v1 import (
     OCR,
     handle_ocr_test
 )

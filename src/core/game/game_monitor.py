@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-from src.utils.ocr import OCR
+from src.utils.ocr_v1 import OCR
 from src.utils.utils import ADBHelper
 from typing import Dict, Any
 
