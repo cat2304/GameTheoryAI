@@ -25,6 +25,10 @@ brew install tesseract
 # Ubuntu
 sudo apt-get install tesseract-ocr
 # Windows: 从 https://github.com/UB-Mannheim/tesseract/wiki 下载安装
+
+# 4. 安装深度学习框架
+conda install pytorch torchvision torchaudio -c pytorch
+conda install opencv scikit-learn matplotlib
 ```
 
 ### 使用说明
@@ -100,3 +104,20 @@ GameTheoryAI/
 | OCR准确率 | >95% |
 | 决策延迟 | <200ms |
 | 内存占用 | <8GB |
+
+class HybridRecognizer:
+    def __init__(self):
+        self.cv_recognizer = CVRecognizer()  # 传统CV识别
+        self.cnn_recognizer = CNNRecognizer()  # CNN识别
+        
+    def recognize(self, image):
+        # 1. 快速预筛选
+        cv_results = self.cv_recognizer.recognize(image)
+        
+        # 2. 对低置信度结果使用CNN
+        low_confidence = [r for r in cv_results if r.confidence < 0.9]
+        if low_confidence:
+            cnn_results = self.cnn_recognizer.recognize(image, low_confidence)
+            
+        # 3. 结果融合
+        return self._merge_results(cv_results, cnn_results)

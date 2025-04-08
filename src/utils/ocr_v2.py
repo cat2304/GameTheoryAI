@@ -261,72 +261,47 @@ class OCR:
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """预处理图像"""
         try:
-            # Convert to grayscale
+            # 1. 转换为灰度图
             if len(image.shape) == 3:
                 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
                 gray = image.copy()
             
-            # Save original grayscale
+            # 保存原始灰度图
             self._save_debug_image(gray, '1_gray.png')
             
-            # Resize image
-            height, width = gray.shape
-            scale = 800 / height
-            resized = cv2.resize(gray, None, fx=scale, fy=scale)
-            self._save_debug_image(resized, '2_resized.png')
+            # 2. 自适应光照校正
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))  # 增加对比度限制
+            enhanced = clahe.apply(gray)
+            self._save_debug_image(enhanced, '2_enhanced.png')
             
-            # Split into regions
-            height, width = resized.shape
-            bottom_y = int(height * 0.7)  # 调整底部区域比例
+            # 3. 高斯模糊去噪
+            denoised = cv2.GaussianBlur(enhanced, (3,3), 0)
+            self._save_debug_image(denoised, '3_denoised.png')
             
-            # Process top region
-            top = resized[:bottom_y, :]
-            top_enhanced = cv2.createCLAHE(
-                clipLimit=2.0,  # 降低对比度限制
-                tileGridSize=(8,8)  # 增大网格大小
-            ).apply(top)
-            top_blurred = cv2.GaussianBlur(top_enhanced, (5,5), 0)  # 增大模糊核
-            _, top_binary = cv2.threshold(top_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            # Process bottom region with different parameters
-            bottom = resized[bottom_y:, :]
-            # Apply stronger contrast enhancement
-            bottom_enhanced = cv2.createCLAHE(
-                clipLimit=4.0,  # 降低对比度限制
-                tileGridSize=(4,4)  # 增大网格大小
-            ).apply(bottom)
-            # Apply sharpening
+            # 4. 边缘增强
             kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-            bottom_sharpened = cv2.filter2D(bottom_enhanced, -1, kernel)
-            # Apply bilateral filter to preserve edges
-            bottom_filtered = cv2.bilateralFilter(bottom_sharpened, 9, 75, 75)
-            # Apply adaptive thresholding
-            bottom_binary = cv2.adaptiveThreshold(
-                bottom_filtered,
+            sharpened = cv2.filter2D(denoised, -1, kernel)
+            self._save_debug_image(sharpened, '4_sharpened.png')
+            
+            # 5. 自适应阈值处理
+            binary = cv2.adaptiveThreshold(
+                sharpened,
                 255,
                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                 cv2.THRESH_BINARY_INV,
-                15,  # 增大块大小
-                3    # 增大常数
+                11,  # 减小块大小
+                2    # 减小常数
             )
-            # Apply morphological operations
-            kernel = np.ones((3,3), np.uint8)  # 增大核大小
-            bottom_binary = cv2.morphologyEx(bottom_binary, cv2.MORPH_CLOSE, kernel)
-            
-            # Save debug images
-            self._save_debug_image(top_enhanced, '3_top_enhanced.png')
-            self._save_debug_image(bottom_enhanced, '3_bottom_enhanced.png')
-            self._save_debug_image(top_binary, '4_top_binary.png')
-            self._save_debug_image(bottom_binary, '4_bottom_binary.png')
-            
-            # Combine binary images
-            binary = np.vstack((top_binary, bottom_binary))
-            
-            # Save final binary image
             self._save_debug_image(binary, '5_binary.png')
             
-            return binary
+            # 6. 形态学操作
+            kernel = np.ones((3,3), np.uint8)
+            morph = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)  # 减少迭代次数
+            morph = cv2.morphologyEx(morph, cv2.MORPH_OPEN, kernel, iterations=1)
+            self._save_debug_image(morph, '6_morph.png')
+            
+            return morph
         except Exception as e:
             self.logger.error(f"图像预处理失败: {str(e)}")
             return image
@@ -336,83 +311,101 @@ class OCR:
         try:
             height, width = image.shape
             
-            # Find contours - handle different OpenCV versions
+            # 使用更高级的轮廓检测方法
             contours_output = cv2.findContours(
                 image,
-                cv2.RETR_TREE,  # 使用TREE模式获取更多轮廓
-                cv2.CHAIN_APPROX_SIMPLE
+                cv2.RETR_EXTERNAL,  # 只检测外轮廓，减少重复
+                cv2.CHAIN_APPROX_TC89_KCOS  # 使用更精确的轮廓近似方法
             )
-            # OpenCV 3.x returns (image, contours, hierarchy)
-            # OpenCV 4.x returns (contours, hierarchy)
-            contours = contours_output[-2]  # Get contours regardless of version
+            contours = contours_output[-2]
             
             if not contours:
                 self.logger.warning("未找到任何轮廓")
                 return []
             
-            # Calculate reference area
-            ref_area = (width * height) / 400  # Expected size for a card
-            min_area = ref_area * 0.2  # 降低最小面积限制
-            max_area = ref_area * 2.5  # 增大最大面积限制
+            # 计算参考面积和宽高比
+            ref_area = (width * height) / 400
+            min_area = ref_area * 0.1  # 进一步降低最小面积限制
+            max_area = ref_area * 4.0   # 进一步增大最大面积限制
             
-            # Calculate reference aspect ratio
-            ref_ratio = 1.4  # Expected aspect ratio for a card
-            min_ratio = ref_ratio * 0.6  # 降低最小宽高比限制
-            max_ratio = ref_ratio * 1.4  # 增大最大宽高比限制
+            ref_ratio = 1.4
+            min_ratio = ref_ratio * 0.4  # 进一步降低最小宽高比限制
+            max_ratio = ref_ratio * 2.0  # 进一步增大最大宽高比限制
             
-            # Define regions
-            bottom_y = int(height * 0.7)  # 调整底部区域比例
-            top_y = int(height * 0.15)    # 调整顶部区域比例
-            left_x = int(width * 0.15)    # 调整左侧区域比例
-            right_x = int(width * 0.85)   # 调整右侧区域比例
+            # 定义区域
+            bottom_y = int(height * 0.8)  # 扩大底部区域
+            top_y = int(height * 0.1)     # 扩大顶部区域
+            left_x = int(width * 0.1)     # 扩大左侧区域
+            right_x = int(width * 0.9)    # 扩大右侧区域
             
-            # Filter contours
+            # 过滤轮廓
             elements = []
             filtered_stats = {
                 'region': 0,
                 'area': 0,
                 'ratio': 0,
-                'overlap': 0
+                'overlap': 0,
+                'angle': 0
             }
             
             for contour in contours:
-                # Get bounding box
-                x, y, w, h = cv2.boundingRect(contour)
+                # 获取最小外接矩形
+                rect = cv2.minAreaRect(contour)
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                
+                # 获取矩形的中心点、宽度、高度和角度
+                center, (w, h), angle = rect
+                
+                # 确保宽度大于高度
+                if h > w:
+                    w, h = h, w
+                    angle += 90
+                
+                # 计算面积和宽高比
                 area = w * h
                 aspect_ratio = w / h if h > 0 else 0
                 
-                # Skip if area is too small or too large
+                # 过滤面积异常的轮廓
                 if area < min_area or area > max_area:
                     filtered_stats['area'] += 1
                     continue
-                    
-                # Skip if aspect ratio is too extreme
+                
+                # 过滤宽高比异常的轮廓
                 if aspect_ratio < min_ratio or aspect_ratio > max_ratio:
                     filtered_stats['ratio'] += 1
                     continue
                 
+                # 过滤角度异常的轮廓（只保留接近水平或垂直的）
+                angle = abs(angle) % 90
+                if not (angle < 30 or angle > 60):
+                    filtered_stats['angle'] += 1
+                    continue
+                
                 # Check region validity
-                center_x = x + w/2
-                center_y = y + h/2
+                center_x = int(center[0])  # 转换为整数
+                center_y = int(center[1])  # 转换为整数
+                w = int(w)  # 转换为整数
+                h = int(h)  # 转换为整数
                 
                 is_valid = False
                 # Bottom region (more lenient)
-                if y > bottom_y:
+                if center_y > bottom_y:
                     is_valid = True
                     min_area *= 0.7  # 进一步降低面积限制
                     max_area *= 1.3  # 进一步增大面积限制
                 # Top region
-                elif y < top_y:
+                elif center_y < top_y:
                     is_valid = True
                 # Left region
-                elif x < left_x:
+                elif center_x < left_x:
                     is_valid = True
                 # Right region
-                elif x > right_x:
+                elif center_x > right_x:
                     is_valid = True
                 # Center region
-                elif (bottom_y > y > top_y and 
-                      left_x < x < right_x and
+                elif (bottom_y > center_y > top_y and 
+                      left_x < center_x < right_x and
                       left_x < center_x < right_x and
                       top_y < center_y < bottom_y):
                     is_valid = True
@@ -425,8 +418,8 @@ class OCR:
                 has_overlap = False
                 for ex, ey, ew, eh in elements:
                     # Calculate overlap
-                    overlap_x = max(0, min(x + w, ex + ew) - max(x, ex))
-                    overlap_y = max(0, min(y + h, ey + eh) - max(y, ey))
+                    overlap_x = max(0, min(ex + ew, center_x + w/2) - max(ex, center_x - w/2))
+                    overlap_y = max(0, min(ey + eh, center_y + h/2) - max(ey, center_y - h/2))
                     overlap_area = overlap_x * overlap_y
                     min_area = min(area, ew * eh)
                     if overlap_area > min_area * 0.4:  # 增大重叠阈值
@@ -437,7 +430,7 @@ class OCR:
                     filtered_stats['overlap'] += 1
                     continue
                 
-                elements.append((x, y, w, h))
+                elements.append((center_x, center_y, w, h))
             
             # Log filtering stats
             self.logger.info(f"总轮廓数: {len(contours)}")
@@ -502,82 +495,73 @@ class OCR:
     def _extract_features(self, image: np.ndarray, is_bottom: bool = False) -> Tuple[List[cv2.KeyPoint], np.ndarray]:
         """提取图像特征"""
         try:
-            # Convert to grayscale if needed
+            # 确保图像是灰度图
             if len(image.shape) == 3:
                 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
                 gray = image.copy()
             
-            # Save original image
-            if is_bottom:
-                self._save_debug_image(gray, '6_original.png')
+            # 增强图像对比度
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            enhanced = clahe.apply(gray)
             
-            # Resize to standard size
-            target_size = (48, 64)  # Keep aspect ratio
-            resized = cv2.resize(gray, target_size, interpolation=cv2.INTER_AREA)
-            
-            if is_bottom:
-                self._save_debug_image(resized, '6_resized.png')
-            
-            # Simple preprocessing
-            # 1. Enhance contrast
-            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4,4))
-            enhanced = clahe.apply(resized)
-            
-            if is_bottom:
-                self._save_debug_image(enhanced, '6_enhanced.png')
-            
-            # 2. Gaussian blur
-            blurred = cv2.GaussianBlur(enhanced, (3,3), 0)
-            
-            if is_bottom:
-                self._save_debug_image(blurred, '6_blurred.png')
-            
-            # 3. Adaptive threshold
-            binary = cv2.adaptiveThreshold(
-                blurred,
-                255,
-                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY_INV,
-                11,
-                2
+            # 使用 SIFT 特征检测器
+            sift = cv2.SIFT_create(
+                nfeatures=3000,      # 进一步增加特征点数量
+                contrastThreshold=0.01,  # 进一步降低对比度阈值
+                edgeThreshold=20,    # 增加边缘阈值
+                sigma=1.3            # 调整高斯模糊参数
             )
             
+            # 提取特征点和描述符
+            keypoints, descriptors = sift.detectAndCompute(enhanced, None)
+            
+            if keypoints is None or descriptors is None:
+                return [], np.array([])
+            
+            # 过滤特征点
+            keypoints, descriptors = self._filter_keypoints(keypoints, descriptors)
+            
+            # 保存调试图像
             if is_bottom:
-                self._save_debug_image(binary, '6_binary.png')
-            
-            # Create ORB detector
-            orb = cv2.ORB_create(
-                nfeatures=100,
-                scaleFactor=1.2,
-                nlevels=8,
-                edgeThreshold=15,
-                firstLevel=0,
-                WTA_K=2,
-                scoreType=cv2.ORB_HARRIS_SCORE,
-                patchSize=31,
-                fastThreshold=20
-            )
-            
-            # Extract features from binary image
-            keypoints, descriptors = orb.detectAndCompute(binary, None)
-            
-            # If not enough features, try enhanced image
-            if len(keypoints) < 4:
-                keypoints, descriptors = orb.detectAndCompute(enhanced, None)
-            
-            # Save debug image with keypoints
-            if is_bottom:
-                kp_image = cv2.drawKeypoints(binary, keypoints, None,
+                kp_image = cv2.drawKeypoints(enhanced, keypoints, None,
                                            color=(0, 255, 0),
                                            flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
                 self._save_debug_image(kp_image, '6_keypoints.png')
                 self.logger.debug(f"提取到 {len(keypoints)} 个特征点")
             
-            return keypoints, descriptors if descriptors is not None else np.array([])
+            # 添加更详细的调试信息
+            self.logger.debug(f"特征点数量: {len(keypoints)}")
+            if len(keypoints) > 0:
+                responses = [kp.response for kp in keypoints]
+                self.logger.debug(f"特征点响应值范围: {min(responses):.2f} - {max(responses):.2f}")
+                self.logger.debug(f"特征点响应值均值: {np.mean(responses):.2f}")
+            
+            return keypoints, descriptors
         except Exception as e:
             self.logger.error(f"特征提取失败: {str(e)}")
             return [], np.array([])
+
+    def _filter_keypoints(self, keypoints, descriptors):
+        """过滤特征点"""
+        if len(keypoints) < 2:
+            return keypoints, descriptors
+        
+        # 计算特征点响应值
+        responses = [kp.response for kp in keypoints]
+        
+        # 设置响应值阈值
+        threshold = np.mean(responses) * 0.5
+        
+        # 过滤低响应值的特征点
+        filtered_kp = []
+        filtered_des = []
+        for i, kp in enumerate(keypoints):
+            if kp.response > threshold:
+                filtered_kp.append(kp)
+                filtered_des.append(descriptors[i])
+            
+        return filtered_kp, np.array(filtered_des)
 
     def _match_template(self, element_kp: List[cv2.KeyPoint], element_des: np.ndarray,
                        template_kp: List[cv2.KeyPoint], template_des: np.ndarray,
@@ -587,33 +571,55 @@ class OCR:
             if len(element_kp) < 2 or len(template_kp) < 2:
                 return 0.0
             
-            # Create BFMatcher for ORB
-            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            # 使用 FLANN 匹配器
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+            search_params = dict(checks=100)  # 增加检查次数
+            flann = cv2.FlannBasedMatcher(index_params, search_params)
             
-            # Match descriptors
-            matches = bf.match(element_des, template_des)
+            # 进行 KNN 匹配
+            matches = flann.knnMatch(element_des, template_des, k=2)
             
-            # Sort matches by distance
-            matches = sorted(matches, key=lambda x: x.distance)
-            
-            # Calculate score
-            min_matches = 3
-            if len(matches) < min_matches:
+            # 应用比率测试
+            good_matches = []
+            for m, n in matches:
+                if m.distance < 0.8 * n.distance:  # 放宽比率测试阈值
+                    good_matches.append(m)
+                
+            if len(good_matches) < 4:
                 return 0.0
             
-            # Use top N matches
-            top_matches = matches[:10]
+            # 获取匹配点的坐标
+            src_pts = np.float32([element_kp[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+            dst_pts = np.float32([template_kp[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             
-            # Calculate average distance
-            avg_distance = sum(m.distance for m in top_matches) / len(top_matches)
+            # 使用 RANSAC 进行几何验证
+            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)  # 降低RANSAC阈值
             
-            # Calculate score
-            base_score = 100 * (1 - avg_distance / 100)  # ORB distances are typically smaller
-            match_bonus = min(20, len(matches))
+            if M is None:
+                return 0.0
             
-            final_score = max(0, min(100, base_score + match_bonus))
+            # 计算内点数量
+            inliers = np.sum(mask)
             
-            return final_score
+            # 计算匹配得分
+            match_score = (inliers / len(good_matches)) * 100
+            
+            if match_score > 20:  # 进一步降低匹配阈值
+                return match_score
+            
+            # 保存调试图像
+            if is_bottom:
+                matches_mask = mask.ravel().tolist()
+                draw_params = dict(matchColor=(0, 255, 0),
+                                 singlePointColor=None,
+                                 matchesMask=matches_mask,
+                                 flags=2)
+                match_image = cv2.drawMatches(element_kp, template_kp, good_matches, None, **draw_params)
+                self._save_debug_image(match_image, '6_matches.png')
+                self.logger.debug(f"匹配得分: {match_score:.2f}")
+            
+            return match_score
         except Exception as e:
             self.logger.error(f"模板匹配失败: {str(e)}")
             return 0.0
@@ -661,6 +667,10 @@ class OCR:
             # 清空现有模板
             self.templates.clear()
             
+            # 定义多尺度和多角度参数
+            scales = [0.8, 0.9, 1.0, 1.1, 1.2]  # 增加尺度变化
+            angles = [0, 10, 20, 30, 40, 50]  # 增加角度变化
+            
             # 遍历模板目录
             for filename in os.listdir(template_dir):
                 if filename.endswith('.png'):
@@ -674,27 +684,45 @@ class OCR:
                             self.logger.error(f"无法读取模板: {template_path}")
                             continue
                         
-                        # 调整模板大小
-                        template_resized = cv2.resize(template, (48, 64))
+                        # 转换为灰度图
+                        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
                         
-                        # 提取特征
-                        keypoints, descriptors = self._extract_features(template_resized)
-                        if keypoints is None or descriptors is None:
-                            self.logger.error(f"无法从模板提取特征: {template_name}")
-                            continue
-                        
-                        # 保存模板和特征
-                        self.templates[template_name] = {
-                            'image': template_resized,
-                            'keypoints': keypoints,
-                            'descriptors': descriptors
-                        }
-                        
-                        self.logger.debug(f"已加载模板 {template_name}: {len(keypoints)} 个特征点")
-                        
+                        # 多尺度处理
+                        for scale in scales:
+                            # 调整模板大小
+                            template_resized = cv2.resize(template_gray, None, fx=scale, fy=scale)
+                            
+                            # 多角度处理
+                            for angle in angles:
+                                # 旋转模板
+                                template_rotated = self._rotate_image(template_resized, angle)
+                                
+                                # 增强对比度
+                                template_enhanced = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8,8)).apply(template_rotated)
+                                
+                                # 提取特征
+                                keypoints, descriptors = self._extract_features(template_enhanced)
+                                if keypoints is None or descriptors is None:
+                                    self.logger.error(f"无法从模板提取特征: {template_name}")
+                                    continue
+                                
+                                # 生成模板标识
+                                template_id = f"{template_name}_s{scale}_a{angle}"
+                                
+                                # 保存模板和特征
+                                self.templates[template_id] = {
+                                    'image': template_rotated,
+                                    'keypoints': keypoints,
+                                    'descriptors': descriptors,
+                                    'scale': scale,
+                                    'angle': angle
+                                }
+                                
+                                self.logger.debug(f"已加载模板 {template_id}: {len(keypoints)} 个特征点")
+                    
                     except Exception as e:
                         self.logger.error(f"处理模板 {template_name} 时出错: {str(e)}")
-                        continue
+                    continue
             
             if not self.templates:
                 self.logger.error("未能加载任何模板")
@@ -703,6 +731,14 @@ class OCR:
             
         except Exception as e:
             self.logger.error(f"加载模板失败: {str(e)}")
+
+    def _rotate_image(self, image, angle):
+        """旋转图像"""
+        height, width = image.shape[:2]
+        center = (width/2, height/2)
+        rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+        rotated = cv2.warpAffine(image, rotation_matrix, (width, height))
+        return rotated
 
     def batch_recognize_images(self, input_dir: str, output_dir: Optional[str] = None) -> Dict[str, Dict]:
         """批量识别目录中的所有图片
@@ -815,7 +851,7 @@ def get_latest_screenshot() -> Optional[str]:
             
         screenshots_dir = config["screenshots_dir"]
         logger.info(f"正在搜索截图目录: {screenshots_dir}")
-        
+            
         # 获取所有PNG文件
         png_files = glob.glob(os.path.join(screenshots_dir, "**/*.png"), recursive=True)
         if not png_files:
@@ -931,16 +967,35 @@ def run_recognition_test():
         print("\n=== 识别结果验证 ===")
         success = verify_recognition_results(game_state)
         
-        # 保存结果
-        save_results = {
+        # 构建详细的识别结果
+        recognition_results = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'image_path': latest_image,
-            'game_state': game_state,
-            'success': success
+            'image_info': {
+                'path': latest_image,
+                'filename': os.path.basename(latest_image),
+                'size': {
+                    'width': ocr.image_width,
+                    'height': ocr.image_height
+                }
+            },
+            'recognition': {
+                'total_elements': len(result),
+                'elements': result,
+                'game_state': game_state,
+                'success': success
+            },
+            'statistics': {
+                'bottom_tiles': len(game_state['bottom']),
+                'left_tiles': len(game_state['left']),
+                'top_tiles': len(game_state['top']),
+                'right_tiles': len(game_state['right']),
+                'center_tiles': len(game_state['center'])
+            }
         }
         
+        # 保存结果
         with open(result_file, 'w', encoding='utf-8') as f:
-            json.dump(save_results, f, ensure_ascii=False, indent=2)
+            json.dump(recognition_results, f, ensure_ascii=False, indent=2)
         
         logger.info("识别测试完成")
         logger.info(f"结果已保存到: {result_file}")
@@ -970,7 +1025,7 @@ def main():
                 logger.warning("结果文件未生成")
         else:
             logger.error("识别测试失败")
-            
+    
     except Exception as e:
         logger.error(f"程序执行出错: {str(e)}")
         sys.exit(1)
