@@ -64,4 +64,11 @@ coverage.xml
 *.so
 
 # Project specific
-src/core/ocr/ 
+src/core/ocr/
+
+# Model files
+models/*.pth
+models/*.h5
+models/*.onnx
+models/*.pb
+models/checkpoints/ 
