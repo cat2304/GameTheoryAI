@@ -29,7 +29,7 @@ import subprocess
 import platform
 import logging
 from pathlib import Path
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_namespace_packages, find_packages
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 from datetime import datetime
@@ -211,6 +211,11 @@ def verify_environment():
         logger.error(f"环境验证失败: {str(e)}")
         return False
 
+def read_requirements():
+    """读取依赖要求"""
+    with open('requirements.txt', 'r', encoding='utf-8') as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+
 def main():
     """主函数"""
     while True:
@@ -234,38 +239,56 @@ def main():
             elif choice == '3':
                 print("\n正在安装项目...")
                 setup(
-                    name="game-theory-ai",
-                    version="0.1.0",
-                    description="Game Theory AI Assistant",
-                    long_description=open("README.md").read(),
-                    long_description_content_type="text/markdown",
-                    author="Your Name",
+                    name="GameTheoryAI",
+                    version="1.0.0",
+                    description="麻将AI分析工具",
+                    author="GameTheoryAI Team",
                     author_email="your.email@example.com",
-                    packages=find_namespace_packages(include=['src*']),
-                    package_dir={'': '.'},
-                    python_requires=">=3.8,<3.9",
-                    cmdclass={
-                        'install': install,
-                        'develop': develop,
+                    packages=find_packages(),
+                    install_requires=read_requirements(),
+                    python_requires=">=3.8",
+                    entry_points={
+                        'console_scripts': [
+                            'mahjongai=mahjong:MahjongAI',
+                        ],
                     },
+                    include_package_data=True,
+                    package_data={
+                        '': ['*.yaml', '*.json', '*.png'],
+                    },
+                    classifiers=[
+                        "Development Status :: 3 - Alpha",
+                        "Intended Audience :: Developers",
+                        "License :: OSI Approved :: MIT License",
+                        "Programming Language :: Python :: 3.8",
+                    ],
                 )
             elif choice == '4':
                 print("\n正在进入开发模式...")
                 setup(
-                    name="game-theory-ai",
-                    version="0.1.0",
-                    description="Game Theory AI Assistant",
-                    long_description=open("README.md").read(),
-                    long_description_content_type="text/markdown",
-                    author="Your Name",
+                    name="GameTheoryAI",
+                    version="1.0.0",
+                    description="麻将AI分析工具",
+                    author="GameTheoryAI Team",
                     author_email="your.email@example.com",
-                    packages=find_namespace_packages(include=['src*']),
-                    package_dir={'': '.'},
-                    python_requires=">=3.8,<3.9",
-                    cmdclass={
-                        'install': install,
-                        'develop': develop,
+                    packages=find_packages(),
+                    install_requires=read_requirements(),
+                    python_requires=">=3.8",
+                    entry_points={
+                        'console_scripts': [
+                            'mahjongai=mahjong:MahjongAI',
+                        ],
                     },
+                    include_package_data=True,
+                    package_data={
+                        '': ['*.yaml', '*.json', '*.png'],
+                    },
+                    classifiers=[
+                        "Development Status :: 3 - Alpha",
+                        "Intended Audience :: Developers",
+                        "License :: OSI Approved :: MIT License",
+                        "Programming Language :: Python :: 3.8",
+                    ],
                 )
             else:
                 print("无效的选择，请重新输入！")

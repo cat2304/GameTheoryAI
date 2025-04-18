@@ -1,0 +1,197 @@
+# 类别名称列表
+class_names:
+  - 一万    # 0
+  - 二万    # 1
+  - 三万    # 2
+  - 六万    # 5
+  - 七万    # 6
+  - 八万    # 7
+  - 九万    # 8
+  - 一筒    # 10
+  - 二筒    # 11
+  - 三筒    # 12
+  - 五筒    # 14
+  - 六筒    # 15
+  - 七筒    # 16
+  - 八筒    # 17
+  - 九筒    # 18
+  - 一条    # 20
+  - 二条    # 21
+  - 三条    # 22
+  - 四条    # 23
+  - 五条    # 24
+  - 六条    # 25
+  - 七条    # 26
+  - 八条    # 27
+  - 九条    # 28
+  - 东      # 29
+  - 南      # 30
+  - 西      # 31
+  - 北      # 32
+  - 中      # 33
+  - 发      # 34
+  - 白      # 35
+  - 春      # 36
+  - 夏      # 37
+  - 秋      # 38
+  - 冬      # 39
+  - 梅      # 40
+  - 兰      # 41
+  - 竹      # 42
+  - 菊      # 43
+  - 胡      # 44
+
+# 检测阈值设置
+confidence_threshold: 0.25   # 置信度阈值，调整为更合适的值
+nms_threshold: 0.45         # 非极大值抑制阈值，适合麻将牌检测
+
+# 容错NMS控制
+nms_control:
+  enabled: true             # 是否启用容错NMS
+  max_det: 300             # 每张图片最大检测数量
+  max_nms: 30000           # 单批次最大NMS处理数量
+  max_wh: 4096             # 最大图像宽度/高度
+  agnostic_nms: false      # 是否使用类别无关的NMS
+  multi_label: true        # 是否允许多标签
+  merge: false             # 是否合并重叠框
+  classes: null            # 指定类别进行NMS，null表示所有类别
+  retry_threshold: 0.4     # NMS重试阈值
+  retry_max: 3             # 最大重试次数
+  soft_nms: true           # 是否使用软NMS
+  soft_nms_sigma: 0.5      # 软NMS的sigma参数
+  soft_nms_threshold: 0.3  # 软NMS的阈值
+
+# 数据集配置
+dataset:
+  source: "/Users/mac/ai/yolo_dataset_ready"  # 原始数据集目录
+  processed: "data/yolov8/processed"  # 预处理后的数据集路径
+  output: "data/yolov8/train"  # 训练输出路径
+  debug: "logs"    # 日志保存路径
+  val_split: 0.2                             # 验证集比例
+  cache_images: true                         # 是否缓存图像到内存
+  cache_ram: true                            # 是否使用RAM缓存
+  cache_disk: false                          # 是否使用磁盘缓存
+
+# 训练配置
+training:
+  # 基础配置
+  model_size: s
+  model_path: "data/yolov8/weights/yolov8s.pt"  # 预训练模型路径
+  epochs: 20
+  batch_size: 4
+  image_size: 640
+  device: cpu
+  optimizer: SGD
+  lr0: 0.001
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  patience: 50
+  save_period: 1
+  workers: 4
+  val_ratio: 0.2
+  augment: true
+  
+  # 数据增强配置
+  degrees: 5.0               # 减小旋转角度范围
+  translate: 0.1             # 保持平移范围
+  scale: 0.5                 # 保持缩放范围
+  shear: 2.0                 # 保持剪切范围
+  flipud: 0.0                # 禁用上下翻转
+  fliplr: 0.5                # 保持左右翻转
+  mosaic: 0.5                # 降低马赛克增强概率
+  mixup: 0.0                 # 禁用mixup增强
+  copy_paste: 0.0            # 禁用复制粘贴增强
+  
+  # 训练策略
+  cache: true                # 保持缓存数据集
+  single_cls: false          # 保持多类别训练
+  rect: true                 # 启用矩形训练，提高速度
+  close_mosaic: 5            # 提前关闭马赛克增强
+  
+  # 验证配置
+  val: true                  # 保持验证
+  val_fraction: 0.1          # 保持验证集比例
+  val_interval: 2            # 减少验证频率
+  
+  # 其他配置
+  deterministic: true        # 是否使用确定性训练
+  seed: 0                    # 随机种子
+  amp: true                  # 是否使用自动混合精度
+  overlap_mask: true         # 是否重叠掩码
+  mask_ratio: 4              # 掩码比例
+  dropout: 0.0               # Dropout比率
+  verbose: true              # 是否显示详细信息
+
+# 调试配置
+debug:
+  # 可视化配置
+  visualize: true            # 是否启用可视化
+  show_labels: true          # 是否显示标签
+  show_conf: true            # 是否显示置信度
+  show_boxes: true           # 是否显示边界框
+  show_masks: true           # 是否显示掩码
+  show_tracks: true          # 是否显示跟踪
+  show_progress: true        # 是否显示进度条
+  
+  # 日志配置
+  log_imgs: 16              # 每轮记录多少张图片
+  log_interval: 10           # 日志记录间隔
+  log_tensorboard: true      # 是否使用TensorBoard
+  log_wandb: false           # 是否使用Weights & Biases
+  
+  # 性能分析
+  profile: true              # 是否启用性能分析
+  profile_batch: 10          # 分析多少批次
+  profile_device: "cpu"      # 分析设备
+  
+  # 调试工具
+  debug_anchors: true        # 是否调试锚点
+  debug_loss: true           # 是否调试损失
+  debug_metrics: true        # 是否调试指标
+  debug_steps: true          # 是否调试步骤
+
+# 推荐参数（针对麻将牌检测优化）
+recommended:
+  # 数据增强推荐
+  augment_recommended: true   # 使用推荐的数据增强参数
+  degrees_recommended: 10.0   # 麻将牌旋转角度范围
+  translate_recommended: 0.2  # 麻将牌平移范围
+  scale_recommended: 0.5      # 麻将牌缩放范围
+  shear_recommended: 2.0      # 麻将牌剪切范围
+  
+  # 优化器推荐
+  optimizer_recommended: "AdamW"  # 推荐使用AdamW优化器
+  lr0_recommended: 0.001         # 推荐初始学习率
+  lrf_recommended: 0.01          # 推荐最终学习率
+  weight_decay_recommended: 0.0005  # 推荐权重衰减
+  
+  # 训练策略推荐
+  batch_size_recommended: 32     # 推荐批次大小
+  epochs_recommended: 100        # 推荐训练轮数
+  image_size_recommended: 640    # 推荐输入图像大小
+  workers_recommended: 8         # 推荐数据加载线程数
+  
+  # 模型推荐
+  model_size_recommended: "n"    # 推荐使用nano模型
+  pretrained_recommended: true   # 推荐使用预训练权重
+  freeze_recommended: false      # 推荐不冻结层
+  
+  # 验证推荐
+  val_interval_recommended: 1    # 推荐验证间隔
+  val_fraction_recommended: 0.1  # 推荐验证集比例
+  
+  # 其他推荐
+  amp_recommended: true          # 推荐使用自动混合精度
+  cache_recommended: true        # 推荐缓存数据集
+  deterministic_recommended: true  # 推荐使用确定性训练
+
+# 模型微调配置
+fine_tune:
+  enabled: false            # 是否启用模型微调
+  freeze: []               # 要冻结的层，空列表表示不冻结任何层
+  unfreeze: []            # 要解冻的层，空列表表示不解冻任何层
+  freeze_epochs: 0        # 冻结训练的轮数
+  freeze_backbone: false  # 是否冻结主干网络
+  freeze_head: false     # 是否冻结检测头

@@ -64,4 +64,8 @@ coverage.xml
 *.so
 
 # Project specific
-src/core/ocr/ 
+src/core/ocr/
+yolov8/
+data/yolov8/
+*.pt
+*.onnx 

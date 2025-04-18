@@ -1,5 +1,36 @@
 # Game Theory AI
 
+## ADB工具包 (Android Debug Bridge Tools)
+这个包提供了一系列用于Android设备自动化操作的工具。
+
+### 主要功能
+1. 设备截图获取
+   - 支持自定义保存路径
+   - 自动生成时间戳文件名
+   - 错误重试机制
+
+2. ADB工具管理
+   - 自动验证ADB可用性
+   - 支持自定义ADB路径
+   - 异常处理和日志记录
+
+### 配置说明
+配置文件位置: config/app_config.yaml
+主要配置项:
+- adb.path: ADB工具路径
+- adb.screenshot.remote_path: 设备端截图路径
+- adb.screenshot.local_dir: 本地保存目录
+- adb.screenshot.filename_format: 文件名格式
+- logging: 日志配置
+
+### 使用示例
+```python
+from src.core.mahjong import MahjongAI
+ai = MahjongAI()
+screenshot_path = ai.take_screenshot()
+print(f"截图保存在: {screenshot_path}")
+```
+
 ### 环境硬性要求
 1. Python 3.8 (必须使用 Conda 环境)
 2. Tesseract OCR
@@ -32,7 +63,6 @@ sudo apt-get install tesseract-ocr
 ```bash
 # 编辑配置文件
 vim config/app_config.yaml  # 设置ADB路径等参数
-vim config/ocr_config.json  # 设置OCR参数
 ```
 
 2. 运行说明
@@ -40,58 +70,28 @@ vim config/ocr_config.json  # 设置OCR参数
 # 初始化环境
 python setup.py
 
-# 启动游戏监控
-python src/core/game/monitor.py
-
-# 启动Web界面
-python src/web/app.py
+# 启动麻将AI
+python -m src.core.mahjong
 ```
 
 ## 项目简介
-博弈AI分析工具
+麻将AI分析工具，提供自动截图、OCR识别和决策功能。
 
 ## 项目结构
 ```
 GameTheoryAI/
 ├── src/                    # 源代码
-│   ├── core/              # 核心功能
-│   │   ├── ocr/          # OCR识别
-│   │   └── game/         # 游戏逻辑
-│   ├── utils/            # 工具函数
-│   └── web/             # Web界面
-├── tests/                # 测试代码
-├── data/                 # 数据目录
-│   ├── screenshots/     # 截图
-│   └── logs/           # 日志
-├── config/              # 配置文件
-└── docs/               # 文档
+│   └── core/              # 核心功能
+│       └── mahjong.py     # 麻将AI主程序
+├── data/                  # 数据目录
+│   ├── screenshots/      # 截图
+│   └── templates/        # 模板图片
+├── config/               # 配置文件
+│   └── app_config.yaml   # 应用配置
+├── README.md            # 项目文档
+├── requirements.txt     # 依赖管理
+└── setup.py            # 安装配置
 ```
-
-## 开发任务
-
-### 第一阶段：基础框架
-1. 环境配置
-2. 截屏功能
-   - 优化延迟 (<16ms)
-   - 多分辨率适配
-3. OCR集成
-   - 训练字库
-   - 优化准确率
-
-### 第二阶段：核心功能
-1. 策略引擎
-   - 规则树系统
-   - Q-learning模块
-2. 操作模块
-   - 输入事件模拟
-   - 优化延迟 (<50ms)
-
-### 第三阶段：优化商用
-1. 性能优化
-   - TensorRT部署
-   - 多线程优化
-2. 稳定性测试
-3. 系统集成
 
 ## 开发目标
 | 指标 | 目标值 |
@@ -99,4 +99,16 @@ GameTheoryAI/
 | 截屏延迟 | <16ms |
 | OCR准确率 | >95% |
 | 决策延迟 | <200ms |
-| 内存占用 | <8GB |
+
+## 依赖要求
+- Python >= 3.8
+- opencv-python
+- numpy
+- pytesseract
+- pyyaml
+- adb工具
+
+## 作者信息
+- 作者: GameTheoryAI Team
+- 版本: 1.0.0
+- 许可: MIT
