@@ -1,49 +1,40 @@
+# 模型配置
+model_path: "data/yolov8/train/train/weights/best.onnx"
+
 # 类别名称列表
 class_names:
-  - 一万    # 0
-  - 二万    # 1
-  - 三万    # 2
-  - 六万    # 5
-  - 七万    # 6
-  - 八万    # 7
-  - 九万    # 8
-  - 一筒    # 10
-  - 二筒    # 11
-  - 三筒    # 12
-  - 五筒    # 14
-  - 六筒    # 15
-  - 七筒    # 16
-  - 八筒    # 17
-  - 九筒    # 18
-  - 一条    # 20
-  - 二条    # 21
-  - 三条    # 22
-  - 四条    # 23
-  - 五条    # 24
-  - 六条    # 25
-  - 七条    # 26
-  - 八条    # 27
-  - 九条    # 28
-  - 东      # 29
-  - 南      # 30
-  - 西      # 31
-  - 北      # 32
-  - 中      # 33
-  - 发      # 34
-  - 白      # 35
-  - 春      # 36
-  - 夏      # 37
-  - 秋      # 38
-  - 冬      # 39
-  - 梅      # 40
-  - 兰      # 41
-  - 竹      # 42
-  - 菊      # 43
-  - 胡      # 44
+  - 1m
+  - 2m
+  - 3m
+  - 4m
+  - 5m
+  - 6m
+  - 7m
+  - 8m
+  - 9m
+  - 1p
+  - 2p
+  - 3p
+  - 4p
+  - 5p
+  - 6p
+  - 7p
+  - 8p
+  - 9p
+  - 1s
+  - 2s
+  - 3s
+  - 4s
+  - 5s
+  - 6s
+  - 7s
+  - 8s
+  - 9s
+
 
 # 检测阈值设置
-confidence_threshold: 0.25   # 置信度阈值，调整为更合适的值
-nms_threshold: 0.45         # 非极大值抑制阈值，适合麻将牌检测
+confidence_threshold: 0.25
+nms_threshold: 0.45
 
 # 容错NMS控制
 nms_control:
@@ -57,16 +48,16 @@ nms_control:
   classes: null            # 指定类别进行NMS，null表示所有类别
   retry_threshold: 0.4     # NMS重试阈值
   retry_max: 3             # 最大重试次数
-  soft_nms: true           # 是否使用软NMS
+  soft_nms: false          # 是否使用软NMS
   soft_nms_sigma: 0.5      # 软NMS的sigma参数
   soft_nms_threshold: 0.3  # 软NMS的阈值
 
 # 数据集配置
 dataset:
-  source: "/Users/mac/ai/yolo_dataset_ready"  # 原始数据集目录
-  processed: "data/yolov8/processed"  # 预处理后的数据集路径
-  output: "data/yolov8/train"  # 训练输出路径
-  debug: "logs"    # 日志保存路径
+  source: /Users/mac/ai/mjai.v19i.yolov8
+  processed: data/yolov8/processed
+  output: data/yolov8/train
+  debug: logs
   val_split: 0.2                             # 验证集比例
   cache_images: true                         # 是否缓存图像到内存
   cache_ram: true                            # 是否使用RAM缓存
@@ -75,21 +66,21 @@ dataset:
 # 训练配置
 training:
   # 基础配置
-  model_size: s
+  model_size: s  # n/s/m/l/x
   model_path: "data/yolov8/weights/yolov8s.pt"  # 预训练模型路径
-  epochs: 20
-  batch_size: 4
+  epochs: 100
+  batch_size: 16
   image_size: 640
-  device: cpu
-  optimizer: SGD
-  lr0: 0.001
+  device: 0  # 0 for GPU, cpu for CPU
+  optimizer: auto
+  lr0: 0.01
   lrf: 0.01
   momentum: 0.937
   weight_decay: 0.0005
   warmup_epochs: 3
   patience: 50
-  save_period: 1
-  workers: 4
+  save_period: 10
+  workers: 8
   val_ratio: 0.2
   augment: true
   
@@ -137,12 +128,12 @@ debug:
   
   # 日志配置
   log_imgs: 16              # 每轮记录多少张图片
-  log_interval: 10           # 日志记录间隔
+  log_interval: 100         # 日志记录间隔
   log_tensorboard: true      # 是否使用TensorBoard
   log_wandb: false           # 是否使用Weights & Biases
   
   # 性能分析
-  profile: true              # 是否启用性能分析
+  profile: false             # 是否启用性能分析
   profile_batch: 10          # 分析多少批次
   profile_device: "cpu"      # 分析设备
   
@@ -151,6 +142,9 @@ debug:
   debug_loss: true           # 是否调试损失
   debug_metrics: true        # 是否调试指标
   debug_steps: true          # 是否调试步骤
+  
+  # 其他配置
+  save_interval: 10          # 保存间隔
 
 # 推荐参数（针对麻将牌检测优化）
 recommended:
@@ -190,7 +184,7 @@ recommended:
 # 模型微调配置
 fine_tune:
   enabled: false            # 是否启用模型微调
-  freeze: []               # 要冻结的层，空列表表示不冻结任何层
+  freeze: 10               # 要冻结的层，空列表表示不冻结任何层
   unfreeze: []            # 要解冻的层，空列表表示不解冻任何层
   freeze_epochs: 0        # 冻结训练的轮数
   freeze_backbone: false  # 是否冻结主干网络

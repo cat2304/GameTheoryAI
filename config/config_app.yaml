@@ -28,7 +28,23 @@ output_dir: "output"  # 输出目录
 log_dir: "logs"  # 日志目录
 
 # 日志配置
-log_level: "INFO"
+logging:
+  level: INFO
+  log_dir: logs
+
+# 系统配置
+system:
+  debug: true
+  max_retries: 3
+  retry_delay: 1.0
+
+# ADB配置
+adb:
+  path: "adb"  # ADB工具路径
+  screenshot:
+    remote_path: "/sdcard/screenshot_{timestamp}.png"  # 设备端截图路径
+    local_dir: "screenshots"  # 本地保存目录
+    filename_format: "screenshot_{timestamp}.png"  # 文件名格式
 
 # 图片处理配置
 image_extensions:                                         # 支持的图片格式
@@ -81,3 +97,16 @@ number_map:
   "七": 7
   "八": 8
   "九": 9
+
+def _restart_adb(self) -> bool:
+    """重启 ADB 服务"""
+    # 停止 ADB 服务器
+    self._run_adb_command(["adb", "kill-server"])
+    time.sleep(1)
+    
+    # 启动 ADB 服务器
+    self._run_adb_command(["adb", "start-server"])
+    time.sleep(2)
+    
+    # 重新连接设备
+    self._run_adb_command(["adb", "connect", "127.0.0.1:7555"])

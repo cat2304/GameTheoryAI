@@ -234,53 +234,34 @@ def validate_dataset(dataset_dir, config):
         logging.error(f"数据集验证失败: {str(e)}")
         raise
 
-def train_model(dataset_path, config, classes):
+def train_model(dataset_path, config):
     """训练YOLO模型"""
     try:
         # 获取绝对路径
         abs_dataset_path = os.path.abspath(dataset_path)
-        abs_images_path = os.path.join(abs_dataset_path, "images")
         
         # 创建输出目录
         output_dir = os.path.abspath(config['dataset']['output'])
         os.makedirs(output_dir, exist_ok=True)
         
-        # 创建dataset.yaml
-        dataset_config = {
+        # 创建数据集配置文件
+        dataset_yaml = {
             "path": abs_dataset_path,
-            "train": "train/images",  # 修改为正确的训练集路径
-            "val": "val/images",      # 修改为正确的验证集路径
-            "nc": len(classes),       # 使用实际的类别数
-            "names": [config['class_names'][i] for i in sorted(classes)]  # 只使用实际存在的类别名称
+            "train": "train/images",
+            "val": "valid/images",
+            "test": "test/images",
+            "nc": 28,
+            "names": ['-', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 
+                     'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 
+                     's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9']
         }
         
-        logging.info(f"实际使用的类别: {dataset_config['names']}")
-        
         yaml_path = os.path.join(abs_dataset_path, "dataset.yaml")
-        with open(yaml_path, "w", encoding="utf-8") as f:
-            yaml.dump(dataset_config, f, allow_unicode=True)
-        
-        logging.info(f"✅ 创建数据集配置文件: {yaml_path}")
-        logging.info(f"   - 数据集路径: {abs_dataset_path}")
-        logging.info(f"   - 训练图片路径: {abs_images_path}")
-        logging.info(f"   - 类别数量: {len(classes)}")
-        
-        # 下载预训练模型
-        model_path = download_pretrained_model(config['training']['model_size'])
+        with open(yaml_path, 'w', encoding='utf-8') as f:
+            yaml.dump(dataset_yaml, f, allow_unicode=True)
         
         # 加载预训练模型
-        model = YOLO(model_path)
-        
-        # 记录训练开始时间
-        start_time = time.time()
-        logging.info("=== 开始训练 ===")
-        logging.info(f"训练配置:")
-        logging.info(f"  - 模型大小: {config['training']['model_size']}")
-        logging.info(f"  - 训练轮数: {config['training']['epochs']}")
-        logging.info(f"  - 批次大小: {config['training']['batch_size']}")
-        logging.info(f"  - 图片尺寸: {config['training']['image_size']}")
-        logging.info(f"  - 学习率: {config['training']['lr0']}")
-        logging.info(f"  - 优化器: {config['training']['optimizer']}")
+        model = YOLO('yolov8s.pt')
         
         # 开始训练
         results = model.train(
@@ -288,9 +269,9 @@ def train_model(dataset_path, config, classes):
             epochs=config['training']['epochs'],
             imgsz=config['training']['image_size'],
             batch=config['training']['batch_size'],
-            device=config['training']['device'],
+            device="cpu",  # 强制使用CPU
             project=output_dir,
-            name="train_" + config['training']['model_size'],
+            name="train",
             exist_ok=True,
             augment=config['training']['augment'],
             optimizer=config['training']['optimizer'],
@@ -306,70 +287,19 @@ def train_model(dataset_path, config, classes):
             conf=config['confidence_threshold'],
             iou=config['nms_threshold'],
             max_det=config['nms_control']['max_det'],
-            verbose=True,
-            plots=True,
-            resume=False,
-            seed=42,
-            deterministic=True,
-            single_cls=False,
-            rect=True,  # 使用矩形训练以提高效率
-            cos_lr=True,  # 使用余弦学习率调度
-            close_mosaic=10,
-            overlap_mask=True,
-            mask_ratio=4,
-            dropout=0.0,
-            val=True,
-            warmup_epochs=config['training']['warmup_epochs'],
-            warmup_momentum=0.8,
-            warmup_bias_lr=0.1,
-            box=7.5,  # 边界框损失权重
-            cls=0.5,  # 分类损失权重
-            dfl=1.5,  # DFL损失权重
-            hsv_h=0.015,  # HSV色调增强
-            hsv_s=0.7,   # HSV饱和度增强
-            hsv_v=0.4,   # HSV亮度增强
-            degrees=0.0,  # 旋转增强
-            translate=0.1,  # 平移增强
-            scale=0.5,    # 缩放增强
-            shear=0.0,    # 剪切增强
-            perspective=0.0,  # 透视增强
-            flipud=0.0,   # 上下翻转概率
-            fliplr=0.5,   # 左右翻转概率
-            mosaic=1.0,   # 马赛克增强
-            mixup=0.0,    # 混合增强
-            copy_paste=0.0  # 复制粘贴增强
+            verbose=True
         )
         
-        # 记录训练结束信息
-        total_time = time.time() - start_time
-        hours = int(total_time // 3600)
-        minutes = int((total_time % 3600) // 60)
-        
-        logging.info("=== 训练完成 ===")
-        logging.info(f"总训练时间: {hours}小时{minutes}分钟")
-        
-        # 记录最终训练结果
-        if hasattr(results, 'metrics'):
-            metrics = results.metrics
-            logging.info("最终训练指标:")
-            for key, value in metrics.items():
-                if isinstance(value, (int, float)):
-                    logging.info(f"  - {key}: {value:.4f}")
-                else:
-                    logging.info(f"  - {key}: {value}")
-        else:
-            logging.warning("无法获取训练指标，请检查训练过程是否正常完成")
-        
         # 获取最佳模型路径
-        best_model_path = os.path.join(output_dir, "train_" + config['training']['model_size'], "weights", "best.pt")
+        best_model_path = os.path.join(output_dir, "train", "weights", "best.pt")
         if not os.path.exists(best_model_path):
             raise FileNotFoundError(f"训练完成但未找到最佳模型文件: {best_model_path}")
             
-        logging.info(f"✅ 训练完成，模型保存在: {best_model_path}")
+        logging.info(f"训练完成，模型保存在: {best_model_path}")
         return best_model_path
         
     except Exception as e:
-        logging.error(f"❌ 训练过程出错: {str(e)}")
+        logging.error(f"训练过程出错: {str(e)}")
         raise
 
 def export_to_onnx(model_path, output_path):
@@ -587,7 +517,7 @@ def main():
         dataset_info = validate_dataset(processed_dir, config)
         
         # 训练模型
-        model_path = train_model(processed_dir, config, dataset_info['classes'])
+        model_path = train_model(processed_dir, config)
         
         # 导出模型
         export_to_onnx(model_path, os.path.join(os.path.dirname(model_path), "best.onnx"))

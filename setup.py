@@ -127,7 +127,7 @@ def setup_environment():
     logger.debug(f"DATA_DIR set to: {os.environ['DATA_DIR']}")
     
     # 设置配置文件路径
-    os.environ['CONFIG_PATH'] = str(Path(__file__).parent / 'config' / 'app_config.yaml')
+    os.environ['CONFIG_PATH'] = str(Path(__file__).parent / 'config' / 'config_app.yaml')
     logger.debug(f"CONFIG_PATH set to: {os.environ['CONFIG_PATH']}")
     
     logger.info("Environment setup completed")
@@ -177,7 +177,7 @@ def run_project():
 def load_config():
     """加载配置文件"""
     try:
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'app_config.yaml')
+        config_path = os.path.join(os.path.dirname(__file__), 'config', 'config_app.yaml')
         with open(config_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
     except Exception as e:
@@ -202,7 +202,7 @@ def verify_environment():
                 return False
                 
         # 检查配置文件
-        if not os.path.exists(os.path.join(os.path.dirname(__file__), 'config', 'app_config.yaml')):
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), 'config', 'config_app.yaml')):
             logger.error("配置文件不存在")
             return False
             

@@ -15,7 +15,7 @@
    - 异常处理和日志记录
 
 ### 配置说明
-配置文件位置: config/app_config.yaml
+配置文件位置: config/config_app.yaml
 主要配置项:
 - adb.path: ADB工具路径
 - adb.screenshot.remote_path: 设备端截图路径
@@ -62,7 +62,7 @@ sudo apt-get install tesseract-ocr
 1. 配置说明
 ```bash
 # 编辑配置文件
-vim config/app_config.yaml  # 设置ADB路径等参数
+vim config/config_app.yaml  # 设置ADB路径等参数
 ```
 
 2. 运行说明
@@ -75,23 +75,48 @@ python -m src.core.mahjong
 ```
 
 ## 项目简介
-麻将AI分析工具，提供自动截图、OCR识别和决策功能。
+这是一个麻将AI项目，提供基础的配置管理和日志功能。
 
 ## 项目结构
 ```
-GameTheoryAI/
-├── src/                    # 源代码
-│   └── core/              # 核心功能
-│       └── mahjong.py     # 麻将AI主程序
-├── data/                  # 数据目录
-│   ├── screenshots/      # 截图
-│   └── templates/        # 模板图片
+.
 ├── config/               # 配置文件
-│   └── app_config.yaml   # 应用配置
+│   └── config_app.yaml   # 应用配置
 ├── README.md            # 项目文档
 ├── requirements.txt     # 依赖管理
-└── setup.py            # 安装配置
+└── mahjong.py          # 主程序
 ```
+
+## 功能特点
+- 配置管理：支持从配置文件加载设置
+- 日志系统：支持文件和控制台日志输出
+- 错误处理：包含完整的错误处理机制
+
+## 使用说明
+1. 安装依赖：
+```bash
+pip install -r requirements.txt
+```
+
+2. 运行程序：
+```bash
+python mahjong.py
+```
+
+## 配置说明
+配置文件位置: config/config_app.yaml
+主要配置项:
+- logging.level: 日志级别
+- logging.log_dir: 日志目录
+- system.debug: 是否启用调试模式
+- system.max_retries: 最大重试次数
+- system.retry_delay: 重试延迟时间
+
+## 开发说明
+- 代码遵循 PEP 8 规范
+- 使用类型注解提高代码可读性
+- 完整的错误处理和日志记录
+- 模块化设计，便于扩展
 
 ## 开发目标
 | 指标 | 目标值 |
@@ -224,7 +249,7 @@ adb kill-server && adb start-server
 - 所有模块必须按结构输出至 `src/` 下，并有调用入口。
 - 日志与调试图必须完整支持，方便你随时追查。
 - 模块之间调用清晰、解耦、可替换。
-- 你每次输入任务，我会按“模块化 + 可验证 + 可运行”形式返回。
+- 你每次输入任务，我会按"模块化 + 可验证 + 可运行"形式返回。
 
 ---
 

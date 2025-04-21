@@ -21,8 +21,8 @@ wheels/
 *.egg
 
 # Virtual Environment
-.venv/
 venv/
+env/
 ENV/
 
 # IDE
@@ -31,20 +31,30 @@ ENV/
 *.swp
 *.swo
 
-# OS
+# Logs
+logs/
+*.log
+
+# Dataset
+data/yolov8/processed/
+data/yolov8/train/
+
+# Model files
+*.pt
+*.onnx
+*.pth
+*.weights
+
+# System
 .DS_Store
 Thumbs.db
 
-# Logs and Data
-*.log
-logs/
-data/
-temp/
-screenshots/
-database/
-cache/
-results/
-output/
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development
+.env
+.env.local
 
 # Test
 .pytest_cache/

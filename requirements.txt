@@ -26,4 +26,14 @@ paddleocr>=2.7.0
 pytesseract>=0.3.0
 
 # 云服务依赖
-tencentcloud-sdk-python>=3.0.0 
+tencentcloud-sdk-python>=3.0.0
+
+# 新增依赖
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+tqdm>=4.65.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pandas>=2.0.0 
