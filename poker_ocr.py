@@ -91,42 +91,23 @@ class DualChannelPokerOCR:
         return cards
 
     def recognize_region(self, roi_color: np.ndarray, region_name: str) -> List[Tuple[str,float,List]]:
-        """
-        对单个 ROI 进行识别：
-        - 先在预处理通道跑 OCR
-        - 如果是 HAND_REGION 且只识别到 <2 张牌，再用原图通道跑一次
-        """
-        # 放大
-        roi_big = cv2.resize(
-            roi_color, None,
-            fx=IMG_CFG['resize_factor'],
-            fy=IMG_CFG['resize_factor'],
-            interpolation=cv2.INTER_LINEAR
-        )
-
-        # 通道 1：预处理
-        proc = self._preprocess(roi_big)
-        path1 = os.path.join(DEBUG_DIR, f"{region_name.lower()}_proc.png")
-        cv2.imwrite(path1, proc)
-        self.logger.debug(f"{region_name} 预处理图: {path1}")
-        res1 = self.ocr.ocr(proc, cls=True)
-        cards1 = self._extract(res1[0] if res1 else [])
-
-        # 如果是手牌区且只识别到 0 or 1 张，再多试一次「原图通道」
-        if region_name == "HAND_REGION" and len(cards1) < 2:
-            path_raw = os.path.join(DEBUG_DIR, f"{region_name.lower()}_raw.png")
-            cv2.imwrite(path_raw, roi_big)
-            self.logger.debug(f"{region_name} 原图图: {path_raw}")
-            res2 = self.ocr.ocr(roi_big, cls=True)
-            cards2 = self._extract(res2[0] if res2 else [])
-            # 合并去重，保留最高置信度
-            merged = {c[0]:c for c in cards1}
-            for val,conf,box in cards2:
-                if val not in merged or conf > merged[val][1]:
-                    merged[val] = (val,conf,box)
-            cards1 = list(merged.values())
-
-        return cards1
+        """识别指定区域中的扑克牌"""
+        # 预处理图像
+        roi_binary = self._preprocess(roi_color)
+        
+        # 使用PaddleOCR识别文本
+        result = self.ocr.ocr(roi_binary, cls=True)
+        
+        # 提取有效的扑克牌值
+        cards = []
+        if result and result[0]:
+            cards = self._extract(result[0])
+        
+        # 记录识别结果
+        if cards:
+            self.logger.info(f"{region_name} 检测到: {cards}")
+        
+        return cards
 
     def recognize(self, img_path: str) -> Dict:
         img = cv2.imread(img_path)
@@ -151,7 +132,6 @@ class DualChannelPokerOCR:
         for name,(x1,y1,x2,y2) in regions.items():
             roi = img[y1:y2, x1:x2]
             cards = self.recognize_region(roi, name)
-            self.logger.info(f"{name} 检测到: {cards}")
 
             # 可视化
             for val,conf,box in cards:

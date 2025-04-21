@@ -3,23 +3,24 @@ import time
 import logging
 from typing import Dict, Any
 from adb import ScrcpyScreenshot
-from poker_ocr import PokerOCR
+from poker_ocr import DualChannelPokerOCR
+import cv2
+import numpy as np
 
 class PokerGameMonitor:
     def __init__(self):
         # 初始化截图工具
         self.screenshot = ScrcpyScreenshot()
         
-        # 初始化 OCR 工具
-        self.ocr = PokerOCR()
+        # 初始化OCR工具
+        self.ocr = DualChannelPokerOCR()
         
         # 配置日志
-        self.logger = logging.getLogger("PokerGameMonitor")
-        self.logger.setLevel(logging.INFO)
-        fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        sh = logging.StreamHandler()
-        sh.setFormatter(fmt)
-        self.logger.addHandler(sh)
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
         
         # 游戏状态
         self.last_hand_cards = []
@@ -52,37 +53,34 @@ class PokerGameMonitor:
                 "error": str(e)
             }
 
-    def start_monitoring(self, interval: int = 5):
-        """开始监控游戏"""
-        self.logger.info("开始监控扑克游戏...")
+    def run(self):
+        """运行游戏监控"""
         try:
             while True:
                 # 获取截图
                 success, image_path = self.screenshot.take_screenshot()
                 if not success:
                     self.logger.error(f"截图失败: {image_path}")
+                    time.sleep(1)
                     continue
                 
-                # 处理截图
-                result = self.process_screenshot(image_path)
-                if not result["success"]:
-                    self.logger.error(f"识别失败: {result.get('error', '未知错误')}")
-                    continue
+                # 识别扑克牌
+                result = self.ocr.recognize(image_path)
+                self.logger.info(f"识别结果: {result}")
                 
-                # 等待下一次截图
-                time.sleep(interval)
+                # 等待一段时间
+                time.sleep(1)
                 
         except KeyboardInterrupt:
-            self.logger.info("用户中断监控")
+            self.logger.info("程序已停止")
         except Exception as e:
-            self.logger.error(f"监控过程发生错误: {str(e)}")
+            self.logger.error(f"发生错误: {str(e)}")
         finally:
             self.screenshot._stop_scrcpy()
-            self.logger.info("监控结束")
 
 def main():
     monitor = PokerGameMonitor()
-    monitor.start_monitoring()
+    monitor.run()
 
 if __name__ == "__main__":
     main()
