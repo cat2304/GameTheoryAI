@@ -15,7 +15,7 @@ from typing import Tuple, Optional
 DEVICE_ID = "127.0.0.1:16384"  # MuMu 设备 TCP/IP 地址
 ADB_PATH = "/Applications/MuMuPlayer.app/Contents/MacOS/MuMuEmulator.app/Contents/MacOS/tools/adb"
 SCREENSHOT_DIR = "/Users/mac/ai/adb"
-SCREENSHOT_INTERVAL = 5       # 秒
+SCREENSHOT_INTERVAL = 1       # 秒
 SCRCPY_WINDOW_NAME = "scrcpy"  # Scrcpy 窗口名称
 SCRCPY_WINDOW_X = 100        # 窗口位置 X
 SCRCPY_WINDOW_Y = 100        # 窗口位置 Y

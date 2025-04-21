@@ -1,202 +1,182 @@
+#!/usr/bin/env python3
+# fixed_region_poker_ocr_dual_channel.py
+
+import os
 import cv2
 import numpy as np
-from paddleocr import PaddleOCR
-from PIL import Image, ImageDraw, ImageFont
-import re
+import logging
 import json
+import re
+from paddleocr import PaddleOCR
+from datetime import datetime
+from typing import Tuple, Dict, List
 
-# =============== OCR配置 ===============
+# =============== OCR 配置 ===============
 OCR_CONFIG = {
-    'use_angle_cls': True,           # 是否使用角度分类器
-    'lang': 'en',                    # 识别语言
-    'det_db_thresh': 0.1,           # 文本检测阈值，值越小检测越敏感
-    'det_db_box_thresh': 0.3,       # 文本检测框阈值，值越小框越多
-    'det_db_unclip_ratio': 2.0,     # 文本检测框扩张比例，值越大框越大
-    'det_limit_side_len': 2000,     # 图像边长限制，超过会进行缩放
-    'rec_char_dict_path': '/opt/homebrew/Caskroom/miniconda/base/envs/gameai/lib/python3.8/site-packages/paddleocr/ppocr/utils/en_dict.txt'  # 字符字典路径
+    'use_angle_cls':       True,
+    'lang':                'en',
+    'det_db_thresh':       0.05,
+    'det_db_box_thresh':   0.05,
+    'det_db_unclip_ratio': 1.5,
+    'det_limit_side_len':  2000,
+    'rec_char_dict_path':  '/opt/homebrew/Caskroom/miniconda/base/envs/gameai/lib/python3.8/site-packages/paddleocr/ppocr/utils/en_dict.txt'
 }
 
 # =============== 区域配置 ===============
-# 手牌区域坐标 (x1, y1, x2, y2) 格式，其中：
-# x1, y1: 左上角坐标
-# x2, y2: 右下角坐标
-PLAYER_HAND_REGION = (200, 700, 600, 900)    # 玩家手牌区域
-OPPONENT_HAND_REGION = (300, 1300, 650, 1450)  # 对手手牌区域
+REGION_RATIOS = {
+    'PUBLIC_REGION': (0.2, 0.5, 0.8, 0.6),
+    'HAND_REGION':   (0.3, 0.88, 0.7, 0.98)
+}
 
 # =============== 图像处理配置 ===============
-IMAGE_PROCESS_CONFIG = {
-    # CLAHE (对比度受限的自适应直方图均衡化) 参数
-    'clahe_clip_limit': 3.0,        # 对比度限制，值越大对比度越强
-    'clahe_tile_size': (4, 4),      # 分块大小，值越大对比度越均匀
-    
-    # 高斯模糊参数
-    'gaussian_kernel': (3, 3),      # 高斯核大小，必须是奇数
-    
-    # 自适应阈值参数
-    'adaptive_threshold_block_size': 9,  # 邻域大小，必须是奇数
-    'adaptive_threshold_c': 1,           # 常数，用于调整阈值
-    
-    # 形态学操作参数
-    'morphology_kernel': (3, 3),     # 形态学操作核大小
-    
-    # 边缘增强参数
-    'edge_weight': 1.8,              # 原始图像权重
-    'edge_negative_weight': -0.8     # 边缘图像权重
+IMG_CFG = {
+    'resize_factor':    2,
+    'clahe_clip_limit': 2.0,
+    'clahe_tile_size':  (8, 8),
+    'blur_ksize':       3
 }
 
-# =============== 字体配置 ===============
-FONT_CONFIG = {
-    'path': "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",  # 字体文件路径
-    'size': 28,                      # 字体大小
-    'color': 'green',                # 字体颜色
-    'outline_color': 'red',          # 边界框颜色
-    'outline_width': 2               # 边界框宽度
-}
+# =============== 输出路径 ===============
+DEBUG_DIR   = 'data/debug'
+PREVIEW_IMG = os.path.join(DEBUG_DIR, 'regions_preview.png')
+RESULT_IMG  = os.path.join(DEBUG_DIR, 'ocr_result.png')
 
-# =============== 输出配置 ===============
-OUTPUT_CONFIG = {
-    'preprocessed_image': 'data/debug/poker_ocr_pre.png',    # 预处理后的图像保存路径
-    'result_image': 'data/debug/poker_ocr_result.jpg',      # 最终结果图像保存路径
-    'debug': True,                               # 是否输出调试信息
-    'show_confidence': True                      # 是否显示置信度
-}
+# 有效牌值
+VALID_CARD_VALUES = {'A','2','3','4','5','6','7','8','9','10','J','Q','K'}
 
-# =============== 扑克牌配置 ===============
-VALID_CARD_VALUES = [
-    'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'  # 有效的扑克牌值
-]
+def get_screen_regions(w: int, h: int) -> Dict[str,Tuple[int,int,int,int]]:
+    regs = {}
+    pad = 5
+    for name,(l,t,r,b) in REGION_RATIOS.items():
+        x1 = max(0, int(w*l)-pad)
+        y1 = max(0, int(h*t)-pad)
+        x2 = min(w, int(w*r)+pad)
+        y2 = min(h, int(h*b)+pad)
+        regs[name] = (x1,y1,x2,y2)
+    return regs
 
-# 初始化OCR
-ocr = PaddleOCR(**OCR_CONFIG)
+class DualChannelPokerOCR:
+    def __init__(self):
+        os.makedirs(DEBUG_DIR, exist_ok=True)
+        self.ocr = PaddleOCR(**OCR_CONFIG, show_log=False)
+        self.logger = logging.getLogger("DualChannelPokerOCR")
 
-def is_valid_card(text, confidence):
-    """验证识别的文本是否为有效的扑克牌值"""
-    text = text.strip().upper()
-    if text in VALID_CARD_VALUES:
-        return True, text
-    match = re.search(r'([A-Z]|\d+)', text)
-    if match and match.group(1) in VALID_CARD_VALUES:
-        return True, match.group(1)
-    return False, None
+    def _preprocess(self, roi: np.ndarray) -> np.ndarray:
+        # 灰度
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        # 红色通道
+        red  = roi[:,:,2]
+        # 融合
+        fused = cv2.max(gray, red)
+        # CLAHE
+        clahe = cv2.createCLAHE(
+            clipLimit=IMG_CFG['clahe_clip_limit'],
+            tileGridSize=IMG_CFG['clahe_tile_size']
+        )
+        enhanced = clahe.apply(fused)
+        # 轻度模糊
+        return cv2.GaussianBlur(enhanced, (IMG_CFG['blur_ksize'],)*2, 0)
 
-def enhance_image(image):
-    """图像增强处理"""
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(
-        clipLimit=IMAGE_PROCESS_CONFIG['clahe_clip_limit'],
-        tileGridSize=IMAGE_PROCESS_CONFIG['clahe_tile_size']
-    )
-    enhanced = clahe.apply(gray)
-    blurred = cv2.GaussianBlur(enhanced, IMAGE_PROCESS_CONFIG['gaussian_kernel'], 0)
-    thresh = cv2.adaptiveThreshold(
-        blurred, 
-        255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY, 
-        IMAGE_PROCESS_CONFIG['adaptive_threshold_block_size'],
-        IMAGE_PROCESS_CONFIG['adaptive_threshold_c']
-    )
-    kernel = np.ones(IMAGE_PROCESS_CONFIG['morphology_kernel'], np.uint8)
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    edge = cv2.Laplacian(morph, cv2.CV_8U)
-    return cv2.addWeighted(
-        morph, 
-        IMAGE_PROCESS_CONFIG['edge_weight'], 
-        edge, 
-        IMAGE_PROCESS_CONFIG['edge_negative_weight'], 
-        0
-    )
+    def _extract(self, lines: List) -> List[Tuple[str,float,List]]:
+        cards = []
+        for box,(txt,conf) in lines:
+            val = txt.strip().upper()
+            if val not in VALID_CARD_VALUES:
+                m = re.search(r'([A-Z]|\d+)', val)
+                if m:
+                    val = m.group(1)
+                    if val=='0': val='10'
+            if val in VALID_CARD_VALUES:
+                cards.append((val, conf, box))
+        return cards
 
-def draw_result(image, valid_cards, regions):
-    """绘制识别结果"""
-    font = ImageFont.truetype(FONT_CONFIG['path'], FONT_CONFIG['size'])
-    img_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(img_pil)
-    
-    for card_value, confidence, box in valid_cards:
-        points = [(int(p[0]), int(p[1])) for p in box]
-        draw.polygon(points, outline=FONT_CONFIG['outline_color'], width=FONT_CONFIG['outline_width'])
-        if OUTPUT_CONFIG['show_confidence']:
-            draw.text((int(box[0][0]), int(box[0][1]) - 30), 
-                     f"{card_value} ({confidence:.2f})", 
-                     font=font, 
-                     fill=FONT_CONFIG['color'])
-        else:
-            draw.text((int(box[0][0]), int(box[0][1]) - 30), 
-                     card_value, 
-                     font=font, 
-                     fill=FONT_CONFIG['color'])
-    
-    for x1, y1, x2, y2 in regions:
-        draw.rectangle([x1, y1, x2, y2], 
-                      outline=FONT_CONFIG['outline_color'], 
-                      width=FONT_CONFIG['outline_width'])
-    
-    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+    def recognize_region(self, roi_color: np.ndarray, region_name: str) -> List[Tuple[str,float,List]]:
+        """
+        对单个 ROI 进行识别：
+        - 先在预处理通道跑 OCR
+        - 如果是 HAND_REGION 且只识别到 <2 张牌，再用原图通道跑一次
+        """
+        # 放大
+        roi_big = cv2.resize(
+            roi_color, None,
+            fx=IMG_CFG['resize_factor'],
+            fy=IMG_CFG['resize_factor'],
+            interpolation=cv2.INTER_LINEAR
+        )
 
-def process_region(image, region, region_name):
-    """处理指定区域"""
-    x1, y1, x2, y2 = region
-    roi = image[y1:y2, x1:x2]
-    result = ocr.ocr(roi)
-    valid_cards = []
-    
-    if result and result[0]:
-        if OUTPUT_CONFIG['debug']:
-            print(f"\n{region_name}牌值:")
-        for line in result[0]:
-            if not line[0]:
-                continue
-            text, confidence = line[1]
-            is_valid, card_value = is_valid_card(text, confidence)
-            if is_valid:
-                adjusted_box = [(p[0] + x1, p[1] + y1) for p in line[0]]
-                valid_cards.append((card_value, confidence, adjusted_box))
-                if OUTPUT_CONFIG['debug']:
-                    print(f"牌值: {card_value}, 置信度: {confidence:.2f}")
-    
-    return valid_cards
+        # 通道 1：预处理
+        proc = self._preprocess(roi_big)
+        path1 = os.path.join(DEBUG_DIR, f"{region_name.lower()}_proc.png")
+        cv2.imwrite(path1, proc)
+        self.logger.debug(f"{region_name} 预处理图: {path1}")
+        res1 = self.ocr.ocr(proc, cls=True)
+        cards1 = self._extract(res1[0] if res1 else [])
+
+        # 如果是手牌区且只识别到 0 or 1 张，再多试一次「原图通道」
+        if region_name == "HAND_REGION" and len(cards1) < 2:
+            path_raw = os.path.join(DEBUG_DIR, f"{region_name.lower()}_raw.png")
+            cv2.imwrite(path_raw, roi_big)
+            self.logger.debug(f"{region_name} 原图图: {path_raw}")
+            res2 = self.ocr.ocr(roi_big, cls=True)
+            cards2 = self._extract(res2[0] if res2 else [])
+            # 合并去重，保留最高置信度
+            merged = {c[0]:c for c in cards1}
+            for val,conf,box in cards2:
+                if val not in merged or conf > merged[val][1]:
+                    merged[val] = (val,conf,box)
+            cards1 = list(merged.values())
+
+        return cards1
+
+    def recognize(self, img_path: str) -> Dict:
+        img = cv2.imread(img_path)
+        if img is None:
+            return {"success":False, "error":f"无法读取: {img_path}"}
+
+        h,w = img.shape[:2]
+        regions = get_screen_regions(w,h)
+
+        # 画预览
+        preview = img.copy()
+        for name,(x1,y1,x2,y2) in regions.items():
+            cv2.rectangle(preview,(x1,y1),(x2,y2),(0,255,0),2)
+            cv2.putText(preview,name,(x1,y1-8),
+                        cv2.FONT_HERSHEY_SIMPLEX,0.7,(0,255,0),2)
+        cv2.imwrite(PREVIEW_IMG, preview)
+        self.logger.info(f"ROI 预览: {PREVIEW_IMG}")
+
+        result = {"success":True, "publicCards":[], "handCards":[]}
+        out = preview.copy()
+
+        for name,(x1,y1,x2,y2) in regions.items():
+            roi = img[y1:y2, x1:x2]
+            cards = self.recognize_region(roi, name)
+            self.logger.info(f"{name} 检测到: {cards}")
+
+            # 可视化
+            for val,conf,box in cards:
+                pts = np.array(box,np.int32).reshape(-1,1,2)
+                pts = (pts / IMG_CFG['resize_factor']).astype(int) + np.array([[[x1,y1]]])
+                cv2.polylines(out,[pts],True,(255,0,0),2)
+                cv2.putText(out,f"{val}({conf:.2f})",
+                            tuple(pts[0][0]+np.array([0,-12])),
+                            cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,0),2)
+
+            slot = "publicCards" if name=="PUBLIC_REGION" else "handCards"
+            result[slot] = [v for v,_,_ in cards]
+
+        cv2.imwrite(RESULT_IMG, out)
+        self.logger.info(f"OCR 结果图: {RESULT_IMG}")
+
+        return result
 
 def main():
-    """主函数"""
-    image = cv2.imread("data/templates/4.png")
-    if image is None:
-        print("Error: Could not read image")
-        return
-    
-    if OUTPUT_CONFIG['debug']:
-        print(f"Image size: {image.shape[1]}x{image.shape[0]}")
-    
-    processed_image = enhance_image(image)
-    cv2.imwrite(OUTPUT_CONFIG['preprocessed_image'], processed_image)
-    
-    regions = [PLAYER_HAND_REGION, OPPONENT_HAND_REGION]
-    region_names = ["对手手牌区域", "玩家手牌区域"]  # 交换区域名称
-    valid_cards = []
-    hand_cards = []
-    public_cards = []
-    
-    for region, name in zip(regions, region_names):
-        cards = process_region(processed_image, region, name)
-        valid_cards.extend(cards)
-        if name == "玩家手牌区域":
-            hand_cards = [card[0] for card in cards]
-        else:
-            public_cards = [card[0] for card in cards]
-    
-    if valid_cards:
-        final = draw_result(image, valid_cards, regions)
-        cv2.imwrite(OUTPUT_CONFIG['result_image'], final)
-        
-        # 返回JSON格式结果，使用实际识别到的牌值
-        result = {
-            "success": True,
-            "handCards": hand_cards,  # 使用实际识别到的手牌
-            "publicCards": public_cards  # 使用实际识别到的公共牌
-        }
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    else:
-        print("未识别到有效的扑克牌值")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
+    img_path = "data/templates/4.png"
+    ocr = DualChannelPokerOCR()
+    out = ocr.recognize(img_path)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
