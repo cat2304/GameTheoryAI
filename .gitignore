@@ -32,25 +32,14 @@ ENV/
 *.swo
 
 # Logs
-logs/
 *.log
+logs/
 
-# Dataset
-data/yolov8/processed/
-data/yolov8/train/
-
-# Model files
-*.pt
-*.onnx
-*.pth
-*.weights
-
-# System
-.DS_Store
-Thumbs.db
-
-# Jupyter Notebook
-.ipynb_checkpoints
+# Data and debug files
+data/debug/
+*.jpg
+*.png
+*.jpeg
 
 # Local development
 .env
