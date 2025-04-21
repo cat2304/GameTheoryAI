@@ -3,6 +3,7 @@ import numpy as np
 from paddleocr import PaddleOCR
 from PIL import Image, ImageDraw, ImageFont
 import re
+import json
 
 # =============== OCR配置 ===============
 OCR_CONFIG = {
@@ -170,15 +171,30 @@ def main():
     cv2.imwrite(OUTPUT_CONFIG['preprocessed_image'], processed_image)
     
     regions = [PLAYER_HAND_REGION, OPPONENT_HAND_REGION]
-    region_names = ["玩家手牌区域", "对手手牌区域"]
+    region_names = ["对手手牌区域", "玩家手牌区域"]  # 交换区域名称
     valid_cards = []
+    hand_cards = []
+    public_cards = []
     
     for region, name in zip(regions, region_names):
-        valid_cards.extend(process_region(processed_image, region, name))
+        cards = process_region(processed_image, region, name)
+        valid_cards.extend(cards)
+        if name == "玩家手牌区域":
+            hand_cards = [card[0] for card in cards]
+        else:
+            public_cards = [card[0] for card in cards]
     
     if valid_cards:
         final = draw_result(image, valid_cards, regions)
         cv2.imwrite(OUTPUT_CONFIG['result_image'], final)
+        
+        # 返回JSON格式结果，使用实际识别到的牌值
+        result = {
+            "success": True,
+            "handCards": hand_cards,  # 使用实际识别到的手牌
+            "publicCards": public_cards  # 使用实际识别到的公共牌
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         print("未识别到有效的扑克牌值")
 
