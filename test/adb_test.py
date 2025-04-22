@@ -40,7 +40,7 @@ class ScrcpyScreenshot:
 
         # 日志配置
         self.logger = logging.getLogger("ScrcpyScreenshot")
-        self.logger.setLevel(logging.ERROR)  # 只保留错误日志
+        self.logger.setLevel(logging.DEBUG)
         fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         fh = logging.FileHandler(os.path.join(self.output_dir, "scrcpy_screenshot.log"))
         fh.setFormatter(fmt)
@@ -50,6 +50,7 @@ class ScrcpyScreenshot:
         self.logger.addHandler(sh)
 
         self.scrcpy_proc = None
+        self.logger.info(f"输出目录: {self.output_dir}")
 
         # 1) 确保 ADB TCP/IP 连接
         self._ensure_adb_tcp()
@@ -59,10 +60,13 @@ class ScrcpyScreenshot:
     def _ensure_adb_tcp(self):
         """将设备切到 TCP/IP 模式并连接"""
         try:
+            self.logger.debug("启用 ADB TCP/IP 模式 (5555)...")
             subprocess.run([self.adb_path, "-s", self.device_id, "tcpip", "5555"],
                            check=True, stdout=subprocess.DEVNULL)
+            self.logger.debug(f"连接到设备 {self.device_id}...")
             subprocess.run([self.adb_path, "connect", self.device_id],
                            check=True, stdout=subprocess.DEVNULL)
+            self.logger.info(f"ADB 已连接到 {self.device_id}")
         except subprocess.CalledProcessError as e:
             self.logger.error("ADB TCP/IP 连接失败", exc_info=e)
             raise RuntimeError("ADB TCP/IP 连接失败")
@@ -83,12 +87,14 @@ class ScrcpyScreenshot:
                 "--stay-awake",
                 "--render-driver", "metal"
             ]
+            self.logger.debug(f"启动 scrcpy: {' '.join(args)}")
             self.scrcpy_proc = subprocess.Popen(
                 args,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             time.sleep(2)  # 等待窗口显示
+            self.logger.info("scrcpy 窗口已启动")
         except Exception as e:
             self.logger.error("启动 scrcpy 失败", exc_info=e)
             raise RuntimeError("scrcpy 启动失败")
@@ -96,11 +102,12 @@ class ScrcpyScreenshot:
     def _stop_scrcpy(self):
         """停止 scrcpy 进程"""
         if self.scrcpy_proc and self.scrcpy_proc.poll() is None:
+            self.logger.debug("终止 scrcpy 进程…")
             self.scrcpy_proc.terminate()
             try:
                 self.scrcpy_proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
-                self.logger.error("scrcpy 未及时退出，强制杀死")
+                self.logger.warning("scrcpy 未及时退出，强制杀死")
                 self.scrcpy_proc.kill()
         self.scrcpy_proc = None
 
@@ -120,6 +127,7 @@ class ScrcpyScreenshot:
                 "-p"
             ], check=True, stdout=open(fp, "wb"))
             
+            self.logger.info(f"截图已保存: {fp}")
             return True, fp
 
         except Exception as e:
@@ -128,20 +136,22 @@ class ScrcpyScreenshot:
 
     def start_loop(self, interval: int = SCREENSHOT_INTERVAL):
         """循环截图主流程"""
+        self.logger.info(f"开始每 {interval}s 截图，按 Ctrl+C 停止")
         try:
             while True:
                 self.take_screenshot()
                 time.sleep(interval)
         except KeyboardInterrupt:
-            pass
+            self.logger.info("用户中断循环")
         finally:
             self._stop_scrcpy()
+            self.logger.info("清理完成，退出")
 
 # ==============================
 # Main Entry
 # ==============================
 def main():
-    logging.basicConfig(level=logging.ERROR)  # 只保留错误日志
+    logging.basicConfig(level=logging.INFO)
     
     # 检查依赖
     if subprocess.run(["which", "scrcpy"], capture_output=True).returncode != 0:
