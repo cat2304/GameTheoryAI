@@ -3,7 +3,7 @@ import time
 import logging
 from typing import Dict, Any
 from adb import ScrcpyScreenshot
-from poker_ocr import DualChannelPokerOCR
+import poker_ocr
 import cv2
 import numpy as np
 
@@ -11,9 +11,6 @@ class PokerGameMonitor:
     def __init__(self):
         # 初始化截图工具
         self.screenshot = ScrcpyScreenshot()
-        
-        # 初始化OCR工具
-        self.ocr = DualChannelPokerOCR()
         
         # 配置日志
         logging.basicConfig(
@@ -30,7 +27,7 @@ class PokerGameMonitor:
         """处理截图并返回识别结果"""
         try:
             # 使用 OCR 识别扑克牌
-            result = self.ocr.recognize_cards(image_path)
+            result = poker_ocr.recognize_cards(image_path)
             
             # 检查是否有新的牌
             hand_changed = result["handCards"] != self.last_hand_cards
@@ -64,8 +61,8 @@ class PokerGameMonitor:
                     time.sleep(1)
                     continue
                 
-                # 识别扑克牌
-                result = self.ocr.recognize(image_path)
+                # 处理截图并获取结果
+                result = self.process_screenshot(image_path)
                 self.logger.info(f"识别结果: {result}")
                 
                 # 等待一段时间
