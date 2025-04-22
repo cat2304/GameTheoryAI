@@ -19,8 +19,8 @@ SCREENSHOT_INTERVAL = 1       # 秒
 SCRCPY_WINDOW_NAME = "scrcpy"  # Scrcpy 窗口名称
 SCRCPY_WINDOW_X = 100        # 窗口位置 X
 SCRCPY_WINDOW_Y = 100        # 窗口位置 Y
-SCRCPY_WINDOW_WIDTH = 800    # 窗口宽度
-SCRCPY_WINDOW_HEIGHT = 600   # 窗口高度
+SCRCPY_WINDOW_WIDTH = 800    # 窗口宽度4
+SCRCPY_WINDOW_HEIGHT = 600   # 窗口高度4
 
 # ==============================
 # Scrcpy Screenshot Class
