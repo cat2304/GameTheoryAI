@@ -29,9 +29,10 @@ def is_action(text: str) -> bool:
     return text in VALID_ACTION or "底池" in text
 
 # ============ OCR 模型 ============
-ocr_en = PaddleOCR(use_angle_cls=True, lang="en",
+ocr_en = PaddleOCR(use_angle_cls=False, lang="en",
                    det_db_thresh=0.15, det_db_box_thresh=0.15,
                    det_db_unclip_ratio=1.5, det_limit_side_len=2000)
+
 ocr_ch = PaddleOCR(use_angle_cls=False, lang="ch",
                    det_db_thresh=0.15, det_db_box_thresh=0.15,
                    det_db_unclip_ratio=1.5, det_limit_side_len=2000)
@@ -98,7 +99,7 @@ def DualChannelPokerOCR(img: np.ndarray) -> Dict:
     # 公共牌区 OCR
     x1, y1, x2, y2 = regs["PUBLIC_REGION"]
     roi_pub = preprocess_card(img[y1:y2, x1:x2])
-    res_pub = ocr_en.ocr(roi_pub, cls=True)
+    res_pub = ocr_en.ocr(roi_pub, cls=False)
     for t, conf, box in extract_cards(res_pub[0] if res_pub else []):
         abs_pts = [[int(pt[0]/2 + x1 - 10), int(pt[1]/2 + y1 - 10)] for pt in box]
         result["publicCards"].append({"action": t, "box": abs_pts})
@@ -108,7 +109,7 @@ def DualChannelPokerOCR(img: np.ndarray) -> Dict:
     # 手牌区 OCR
     x1, y1, x2, y2 = regs["HAND_REGION"]
     roi_hand = preprocess_card(img[y1:y2, x1:x2])
-    res_hand = ocr_en.ocr(roi_hand, cls=True)
+    res_hand = ocr_en.ocr(roi_hand, cls=False)
     for t, conf, box in extract_cards(res_hand[0] if res_hand else []):
         abs_pts = [[int(pt[0]/2 + x1 - 10), int(pt[1]/2 + y1 - 10)] for pt in box]
         result["handCards"].append({"action": t, "box": abs_pts})
@@ -119,7 +120,7 @@ def DualChannelPokerOCR(img: np.ndarray) -> Dict:
     x1, y1, x2, y2 = regs["CLICK_REGION"]
     roi_click = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
     roi_click = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8)).apply(roi_click)
-    res_click = ocr_ch.ocr(roi_click, cls=True)
+    res_click = ocr_ch.ocr(roi_click, cls=False)
     for box, (txt, conf) in (res_click[0] if res_click else []):
         t = txt.strip()
         if is_action(t):
