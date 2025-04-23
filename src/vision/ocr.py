@@ -143,7 +143,7 @@ def recognize_cards(image_path: str) -> Dict:
 
 if __name__ == "__main__":
     # 示例：既打印结果，又可在脚本外拿到返回值
-    img = cv2.imread("data/templates/5.png")
+    img = cv2.imread("data/screenshots/20250423/screen_20250423_200557.png")
     result = DualChannelPokerOCR(img)
     # 打印 JSON
     print("识别结果：")

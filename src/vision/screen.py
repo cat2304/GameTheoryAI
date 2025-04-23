@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
+import json
 
 class ScreenCapture:
     def __init__(self,
@@ -123,4 +124,17 @@ class ScreenCapture:
 
     def is_frame_available(self) -> bool:
         """检查是否有可用的图像帧"""
-        return not self.frame_queue.empty() 
+        return not self.frame_queue.empty()
+
+if __name__ == "__main__":
+    # 配置日志
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    # 创建屏幕捕获实例
+    screen_capture = ScreenCapture(device_id="emulator-5554")
+
+    success, image_path = screen_capture.take_screenshot()
+    if success:
+        print(f"成功获取截图: {image_path}")
+    else:
+        print(f"截图失败: {image_path}")
+ 

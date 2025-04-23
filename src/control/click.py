@@ -2,16 +2,39 @@ import subprocess
 import time
 import logging
 import random
+import os
 from typing import Optional, Tuple
 
 class PokerClicker:
     def __init__(self, device_id: str = "127.0.0.1:16384"):
         self.device_id = device_id
+        
+        # 确保日志目录存在
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # 配置日志记录器
         self.logger = logging.getLogger("PokerClicker")
         self.logger.setLevel(logging.INFO)
-        self.logger.addHandler(logging.StreamHandler())
-        self.logger.addHandler(logging.FileHandler('poker_click.log'))
         
+        # 添加控制台处理器
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        self.logger.addHandler(console_handler)
+        
+        # 添加文件处理器
+        log_file = os.path.join(log_dir, "poker_click.log")
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        self.logger.addHandler(file_handler)
+        
+        # 设置日志格式
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+        
+        self.logger.info("点击控制器初始化完成")
+
     def _run_adb_command(self, command: str) -> bool:
         """执行ADB命令"""
         try:
