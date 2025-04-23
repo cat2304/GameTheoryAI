@@ -44,26 +44,10 @@ def setup_logging():
     root_logger.info("日志系统初始化完成")
     root_logger.info(f"日志文件路径: {log_file}")
 
-def test_ocr():
-    """测试 OCR 功能"""
-    # 测试图片路径
-    test_image = "data/templates/5.png"
-    
-    # 识别图片
-    result = recognize_cards(test_image)
-    
-    # 打印识别结果
-    print("\n识别结果:")
-    print(f"公共牌: {[card['action'] for card in result['publicCards']]}")
-    print(f"手牌: {[card['action'] for card in result['handCards']]}")
-    print(f"可用动作: {[action['action'] for action in result['actions']]}")
 
 def main():
     # 配置日志
     setup_logging()
-    
-    # 先测试 OCR 功能
-    test_ocr()
     
     # 创建并运行游戏控制器
     controller = GameController()
