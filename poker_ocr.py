@@ -130,6 +130,16 @@ def DualChannelPokerOCR(img: np.ndarray) -> Dict:
     cv2.imwrite(RESULT_IMG, out)
     return result
 
+def recognize_cards(image_path: str) -> Dict:
+    """
+    对外接口：传入图像路径，返回识别结果 dict。
+    内部调用 DualChannelPokerOCR 处理图像。
+    """
+    img = cv2.imread(image_path)
+    if img is None:
+        return {"success": False, "error": f"无法读取图像: {image_path}"}
+    return DualChannelPokerOCR(img)
+
 if __name__ == "__main__":
     # 示例：既打印结果，又可在脚本外拿到返回值
     img = cv2.imread("data/templates/5.png")
