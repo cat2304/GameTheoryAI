@@ -71,8 +71,8 @@ class GameController:
                 # 执行决策
                 if decision and decision != self.last_action:
                     self.logger.info(f"执行决策: {decision}")
-                    self.execute_decision(decision)
-                    self.last_action = decision
+                    #self.execute_decision(decision)
+                    # self.last_action = decision
                 else:
                     self.logger.info("无需执行新的决策")
             else:
@@ -167,6 +167,8 @@ class GameController:
         """执行决策"""
         try:
             self.logger.info(f"开始执行决策: {decision}")
+            # 暂时注释掉执行决策的代码，先测试决策逻辑
+            """
             if decision == "raise":
                 self.logger.info("执行加注操作")
                 self.clicker.click_action("加注")
@@ -178,6 +180,7 @@ class GameController:
                 self.clicker.click_action("弃牌")
             else:
                 self.logger.warning(f"未知的决策: {decision}")
+            """
             self.logger.info("决策执行完成")
         except Exception as e:
             self.logger.error(f"执行决策失败: {str(e)}")
