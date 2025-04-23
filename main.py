@@ -53,12 +53,6 @@ def main():
         logger.info("正在初始化屏幕捕获...")
         screen_capture = ScreenCapture()
         
-        # 测试屏幕捕获
-        success, result = screen_capture.take_screenshot()
-        if not success:
-            raise RuntimeError(f"屏幕捕获测试失败: {result}")
-        logger.info("屏幕捕获测试成功")
-        
         # 创建并运行游戏控制器
         logger.info("正在初始化游戏控制器...")
         controller = GameController(screen_capture=screen_capture)
