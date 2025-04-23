@@ -7,12 +7,13 @@ from src.control.click import PokerClicker
 from src.core.game_state import GameState, GameRound
 
 class GameController:
-    def __init__(self):
+    def __init__(self, screen_capture: ScreenCapture = None):
         # 初始化各个模块
         self.logger = logging.getLogger(__name__)
         self.logger.info("初始化游戏控制器...")
         
-        self.screen_capture = ScreenCapture()
+        # 使用传入的screen_capture或创建新的实例
+        self.screen_capture = screen_capture if screen_capture is not None else ScreenCapture()
         self.logger.info("屏幕捕获模块初始化完成")
         
         self.clicker = PokerClicker()

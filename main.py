@@ -2,9 +2,8 @@
 import os
 import logging
 from datetime import datetime
-from src.vision.screen import ScreenCapture
-from src.vision.ocr import recognize_cards
 from src.core.game_controller import GameController
+from src.vision.screen import ScreenCapture
 
 def setup_logging():
     """配置日志系统"""
@@ -24,7 +23,7 @@ def setup_logging():
     
     # 创建文件处理器
     log_file = os.path.join(log_dir, "game.log")
-    file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='w')  # 使用 'w' 模式覆盖旧日志
+    file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='w')
     file_handler.setLevel(logging.INFO)
     
     # 创建控制台处理器
@@ -44,14 +43,32 @@ def setup_logging():
     root_logger.info("日志系统初始化完成")
     root_logger.info(f"日志文件路径: {log_file}")
 
-
 def main():
     # 配置日志
     setup_logging()
+    logger = logging.getLogger(__name__)
     
-    # 创建并运行游戏控制器
-    controller = GameController()
-    controller.run()
+    try:
+        # 首先初始化屏幕捕获
+        logger.info("正在初始化屏幕捕获...")
+        screen_capture = ScreenCapture()
+        
+        # 测试屏幕捕获
+        success, result = screen_capture.take_screenshot()
+        if not success:
+            raise RuntimeError(f"屏幕捕获测试失败: {result}")
+        logger.info("屏幕捕获测试成功")
+        
+        # 创建并运行游戏控制器
+        logger.info("正在初始化游戏控制器...")
+        controller = GameController(screen_capture=screen_capture)
+        controller.run()
+    except KeyboardInterrupt:
+        logger.info("\n程序被用户中断")
+    except Exception as e:
+        logger.error(f"发生错误: {str(e)}")
+    finally:
+        logger.info("程序结束")
 
 if __name__ == "__main__":
     main()

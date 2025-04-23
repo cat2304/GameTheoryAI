@@ -66,6 +66,21 @@ class PokerClicker:
         y += random.randint(-5, 5)
         
         self.logger.info(f"点击位置: ({x}, {y})")
+        
+        # 在点击位置显示触摸轨迹
+        try:
+            # 使用快速滑动来显示触摸轨迹
+            self._run_adb_command(f'input touchscreen swipe {x-20} {y-20} {x+20} {y+20} 200')
+            time.sleep(0.5)  # 等待轨迹显示
+        except Exception as e:
+            self.logger.error(f"显示触摸轨迹失败: {e}")
+        
+        # 等待用户确认
+        confirm = input("确认点击位置？(y/n): ").strip().lower()
+        if confirm != 'y':
+            self.logger.info("用户取消点击")
+            return False
+        
         time.sleep(0.5)  # 点击前等待
         
         # 使用长按来确保点击生效
@@ -184,3 +199,38 @@ class PokerClicker:
         
         self.logger.error(f"未知的操作按钮: {action}")
         return False 
+
+if __name__ == "__main__":
+    # 配置日志
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    
+    # 创建点击控制器实例
+    clicker = PokerClicker(device_id="127.0.0.1:16384")
+    
+    try:
+        # 测试1: 点击指定位置
+        print("\n测试1: 点击指定位置")
+        clicker.click_position(500, 500)
+        
+        # 测试2: 点击公共牌
+        print("\n测试2: 点击公共牌")
+        clicker.click_public_cards(['A', 'K', 'Q'])
+        
+        # 测试3: 点击手牌
+        print("\n测试3: 点击手牌")
+        clicker.click_hand_cards(['J', '10'])
+        
+        # 测试4: 点击操作按钮
+        print("\n测试4: 点击操作按钮")
+        clicker.click_action("加注")
+        
+        # 测试5: 点击单张牌
+        print("\n测试5: 点击单张牌")
+        clicker.click_card("A", (400, 400))
+        
+    except KeyboardInterrupt:
+        print("\n程序被用户中断")
+    except Exception as e:
+        print(f"发生错误: {str(e)}")
+    finally:
+        print("测试完成") 
