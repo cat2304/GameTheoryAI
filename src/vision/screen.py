@@ -23,7 +23,7 @@ class ScreenCapture:
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
         
         # 初始化图像队列
-        self.frame_queue = queue.Queue(maxsize=10)
+        self.frame_queue = queue.Queue(maxsize=5)
         
         # 获取设备ID
         self.device_id = self._get_device_id()
@@ -84,13 +84,25 @@ class ScreenCapture:
                     time.sleep(2)
                     continue
                 
+                # 生成文件名
+                filename = f"screen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                filepath = os.path.join(self.output_dir, filename)
+                
+                # 保存图像
+                cv2.imwrite(filepath, frame)
+                self.logger.info(f"截图已保存: {filepath}")
+                
                 # 更新队列
                 if not self.frame_queue.full():
-                    self.frame_queue.put(frame)
+                    self.frame_queue.put(filepath)
                 else:
                     try:
-                        self.frame_queue.get_nowait()
-                        self.frame_queue.put(frame)
+                        # 获取并删除最旧的图片
+                        old_filepath = self.frame_queue.get_nowait()
+                        if os.path.exists(old_filepath):
+                            os.remove(old_filepath)
+                            self.logger.info(f"删除旧图片: {old_filepath}")
+                        self.frame_queue.put(filepath)
                     except queue.Empty:
                         pass
                 
@@ -105,20 +117,36 @@ class ScreenCapture:
         """获取一张截图"""
         try:
             # 从队列获取最新帧
-            frame = self.frame_queue.get(timeout=1.0)
+            try:
+                filepath = self.frame_queue.get(timeout=1.0)
+                return True, filepath
+            except queue.Empty:
+                # 如果队列为空，直接执行一次截图
+                result = subprocess.run([
+                    "adb", "-s", self.device_id, "exec-out", "screencap -p"
+                ], capture_output=True)
+                
+                if result.returncode != 0:
+                    self.logger.error(f"截图失败: {result.stderr.decode()}")
+                    return False, "截图失败"
+                
+                # 转换图像数据
+                nparr = np.frombuffer(result.stdout, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                
+                if frame is None:
+                    self.logger.error("无法解码图像数据")
+                    return False, "无法解码图像数据"
+                
+                # 生成文件名
+                filename = f"screen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                filepath = os.path.join(self.output_dir, filename)
+                
+                # 保存图像
+                cv2.imwrite(filepath, frame)
+                self.logger.info(f"截图已保存: {filepath}")
+                return True, filepath
             
-            # 生成文件名
-            filename = f"screen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            filepath = os.path.join(self.output_dir, filename)
-            
-            # 保存图像
-            cv2.imwrite(filepath, frame)
-            self.logger.info(f"截图已保存: {filepath}")
-            return True, filepath
-            
-        except queue.Empty:
-            self.logger.error("无法获取视频帧")
-            return False, "无法获取视频帧"
         except Exception as e:
             self.logger.error(f"截图失败: {e}")
             return False, str(e)
