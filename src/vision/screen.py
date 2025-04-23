@@ -63,6 +63,8 @@ class ScreenCapture:
     
     def _capture_frames(self):
         """持续捕获屏幕帧"""
+        current_index = 1  # 当前使用的图片索引
+        
         while True:
             try:
                 # 执行截图命令
@@ -84,8 +86,8 @@ class ScreenCapture:
                     time.sleep(2)
                     continue
                 
-                # 生成文件名
-                filename = f"screen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                # 使用固定的文件名
+                filename = f"screen_{current_index}.png"
                 filepath = os.path.join(self.output_dir, filename)
                 
                 # 保存图像
@@ -97,14 +99,13 @@ class ScreenCapture:
                     self.frame_queue.put(filepath)
                 else:
                     try:
-                        # 获取并删除最旧的图片
-                        old_filepath = self.frame_queue.get_nowait()
-                        if os.path.exists(old_filepath):
-                            os.remove(old_filepath)
-                            self.logger.info(f"删除旧图片: {old_filepath}")
+                        self.frame_queue.get_nowait()
                         self.frame_queue.put(filepath)
                     except queue.Empty:
                         pass
+                
+                # 更新索引，循环使用1-5
+                current_index = (current_index % 5) + 1
                 
                 # 控制截图频率
                 time.sleep(5)
@@ -138,8 +139,8 @@ class ScreenCapture:
                     self.logger.error("无法解码图像数据")
                     return False, "无法解码图像数据"
                 
-                # 生成文件名
-                filename = f"screen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                # 使用固定的文件名
+                filename = f"screen_1.png"
                 filepath = os.path.join(self.output_dir, filename)
                 
                 # 保存图像
