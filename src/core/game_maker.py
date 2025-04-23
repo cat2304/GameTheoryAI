@@ -1,6 +1,18 @@
 import logging
+from enum import Enum, auto
 from typing import List, Optional
 from src.core.game_state import GameState, GameRound
+
+
+class HandRank(Enum):
+    HIGH_CARD = auto()
+    PAIR = auto()
+    TWO_HIGH_CARDS = auto()
+    STRAIGHT = auto()
+    FLUSH = auto()
+    FOUR_OF_A_KIND = auto()
+    STRAIGHT_FLUSH = auto()
+
 
 class GameMaker:
     def __init__(self):
@@ -9,96 +21,90 @@ class GameMaker:
 
     def make_decision(self, game_state: GameState) -> Optional[str]:
         """根据当前游戏状态做出决策"""
-        try:
-            # 获取当前游戏状态
-            current_round = game_state.current_round
-            hand_cards = game_state.hand_cards
-            public_cards = game_state.public_cards
-            
-            self.logger.info(f"当前游戏状态:")
-            self.logger.info(f"回合: {current_round}")
-            self.logger.info(f"手牌: {hand_cards}")
-            self.logger.info(f"公牌: {public_cards}")
-            
-            # 根据游戏状态做出决策
-            if not hand_cards:
-                self.logger.warning("没有手牌，无法做出决策")
-                return None
-                
-            if current_round == GameRound.PREFLOP:
-                # 翻牌前策略
-                if len(hand_cards) == 2:
-                    # 检查是否是对子
-                    if hand_cards[0] == hand_cards[1]:
-                        self.logger.info("检测到对子，建议加注")
-                        return "raise"
-                    # 检查是否是大牌
-                    if hand_cards[0] in ["A", "K", "Q"] and hand_cards[1] in ["A", "K", "Q"]:
-                        self.logger.info("检测到大牌，建议加注")
-                        return "raise"
-                    self.logger.info("手牌一般，建议跟注")
-                    return "call"
-            
-            elif current_round == GameRound.FLOP:
-                # 翻牌策略
-                if len(public_cards) >= 3:
-                    # 检查是否形成对子
-                    if any(card in hand_cards for card in public_cards):
-                        self.logger.info("检测到对子，建议加注")
-                        return "raise"
-                    self.logger.info("没有形成对子，建议跟注")
-                    return "call"
-            
-            elif current_round == GameRound.TURN:
-                # 转牌策略
-                if len(public_cards) >= 4:
-                    # 检查是否形成顺子或同花
-                    if self.check_straight(hand_cards + public_cards):
-                        self.logger.info("检测到顺子，建议加注")
-                        return "raise"
-                    if self.check_flush(hand_cards + public_cards):
-                        self.logger.info("检测到同花，建议加注")
-                        return "raise"
-                    self.logger.info("没有形成顺子或同花，建议跟注")
-                    return "call"
-            
-            elif current_round == GameRound.RIVER:
-                # 河牌策略
-                if len(public_cards) >= 5:
-                    # 检查是否形成同花顺
-                    if self.check_straight_flush(hand_cards + public_cards):
-                        self.logger.info("检测到同花顺，建议加注")
-                        return "raise"
-                    # 检查是否形成四条
-                    if self.check_four_of_a_kind(hand_cards + public_cards):
-                        self.logger.info("检测到四条，建议加注")
-                        return "raise"
-                    self.logger.info("没有形成大牌，建议跟注")
-                    return "call"
-            
-            self.logger.info("无法做出决策，建议跟注")
-            return "call"
-            
-        except Exception as e:
-            self.logger.error(f"决策过程出错: {str(e)}")
-            return None
+        current_round = game_state.current_round
+        hand = game_state.hand_cards
+        public = game_state.public_cards
+
+        self.logger.info(f"当前回合: {current_round}")
+        self.logger.info(f"手牌: {hand}")
+        self.logger.info(f"公牌: {public}")
+
+        rank = self.evaluate_hand(current_round, hand, public)
+        self.logger.info(f"评估牌型: {rank.name}")
+
+        # 默认决策：让牌
+        decision = "check"
+
+        # 有足够强的牌时加注
+        if rank in {
+            HandRank.STRAIGHT_FLUSH,
+            HandRank.FOUR_OF_A_KIND,
+            HandRank.FLUSH,
+            HandRank.STRAIGHT,
+            HandRank.PAIR,
+            HandRank.TWO_HIGH_CARDS
+        }:
+            decision = "raise"
+
+        self.logger.info(f"决策: {decision}")
+        return decision
+
+    def evaluate_hand(
+        self,
+        current_round: GameRound,
+        hand: List[str],
+        public: List[str]
+    ) -> HandRank:
+        """根据回合和牌张评估牌型，返回 HandRank 枚举"""
+        # 翻牌前只看手牌
+        if current_round == GameRound.PREFLOP:
+            if hand[0] == hand[1]:
+                return HandRank.PAIR
+            if all(card in {"A", "K", "Q"} for card in hand):
+                return HandRank.TWO_HIGH_CARDS
+            return HandRank.HIGH_CARD
+
+        # 其余回合组合手牌与公牌
+        cards = hand + public
+        # 同花顺优先
+        if self.check_straight_flush(cards):
+            return HandRank.STRAIGHT_FLUSH
+        if self.check_four_of_a_kind(cards):
+            return HandRank.FOUR_OF_A_KIND
+        if self.check_flush(cards):
+            return HandRank.FLUSH
+        if self.check_straight(cards):
+            return HandRank.STRAIGHT
+        # 对子：任意值出现两次以上
+        if self.check_pair(cards):
+            return HandRank.PAIR
+        return HandRank.HIGH_CARD
 
     def check_straight(self, cards: List[str]) -> bool:
         """检查是否形成顺子"""
-        # 实现顺子检查逻辑
+        # TODO: 实现顺子检测逻辑
         return False
 
     def check_flush(self, cards: List[str]) -> bool:
         """检查是否形成同花"""
-        # 实现同花检查逻辑
+        # TODO: 实现同花检测逻辑
         return False
 
     def check_straight_flush(self, cards: List[str]) -> bool:
         """检查是否形成同花顺"""
-        # 实现同花顺检查逻辑
+        # TODO: 实现同花顺检测逻辑
         return False
 
     def check_four_of_a_kind(self, cards: List[str]) -> bool:
         """检查是否形成四条"""
-        # 实现四条检查逻辑
-        return False 
+        # TODO: 实现四条检测逻辑
+        return False
+
+    def check_pair(self, cards: List[str]) -> bool:
+        """检查是否存在对子或更高重复"""
+        counts = {}
+        for card in cards:
+            counts[card] = counts.get(card, 0) + 1
+            if counts[card] >= 2:
+                return True
+        return False

@@ -123,8 +123,6 @@ class GameController:
                 self.logger.info("等待5秒后继续...")
                 time.sleep(5)
                 
-        except KeyboardInterrupt:
-            self.logger.info("程序已停止")
         except Exception as e:
             self.logger.error(f"发生错误: {str(e)}")
         finally:
