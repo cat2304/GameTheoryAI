@@ -1,0 +1,84 @@
+# 系统配置
+environment:
+  tesseract_path: "/usr/local/bin/tesseract"  # OCR工具路径
+  screenshots_dir: "data/screenshots"  # 截图目录
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: "logs/game.log"
+
+# OCR配置
+ocr:
+  confidence_threshold: 25
+
+# 游戏配置
+game:
+  pot_size: 0
+  current_bet: 0
+  player_stack: 1000
+  opponent_stack: 1000
+  current_round: "preflop"
+  player_position: "button"
+  
+  strategy:
+    min_raise: 2
+    max_raise: 4
+    pot_odds_threshold: 0.3
+    position_weight: 1.2
+
+# 系统配置
+system:
+  debug: false
+  screenshot_interval: 1  # 截图间隔(秒)
+
+# 目录配置
+debug_dir: "output/debug"  # 调试输出目录
+
+# 预处理参数
+preprocess:
+  sharpen_kernel: [[-1,-1,-1], [-1,9,-1], [-1,-1,-1]]  # 锐化核
+  clahe_clip_limit: 3.0  # CLAHE对比度限制
+  clahe_tile_size: 8  # CLAHE瓦片大小
+  bilateral_d: 9  # 双边滤波直径
+  bilateral_sigma_color: 75  # 双边滤波颜色标准差
+  bilateral_sigma_space: 75  # 双边滤波空间标准差
+  adaptive_threshold_block_size: 15  # 自适应阈值块大小
+  adaptive_threshold_c: 5  # 自适应阈值常数
+
+# 检测参数
+detection:
+  min_area: 50  # 降低最小面积
+  max_area: 20000  # 增加最大面积
+  min_aspect_ratio: 0.3  # 降低最小宽高比
+  max_aspect_ratio: 3.0  # 增加最大宽高比
+
+# ADB配置
+adb:
+  path: "adb"  # ADB工具路径
+  screenshot:
+    remote_path: "/sdcard/screenshot_{timestamp}.png"  # 设备端截图路径
+    local_dir: "data/screenshots"  # 使用统一的截图目录
+    filename_format: "screenshot_{timestamp}.png"  # 文件名格式
+
+# OCR 参数设置
+ocr:
+  det_db_thresh: 0.15
+  det_db_box_thresh: 0.15
+  det_db_unclip_ratio: 1.5
+  det_limit_side_len: 2000
+  use_angle_cls: true
+  template_match_threshold: 0.6
+
+def _restart_adb(self) -> bool:
+    """重启 ADB 服务"""
+    # 停止 ADB 服务器
+    self._run_adb_command(["adb", "kill-server"])
+    time.sleep(1)
+    
+    # 启动 ADB 服务器
+    self._run_adb_command(["adb", "start-server"])
+    time.sleep(2)
+    
+    # 重新连接设备
+    self._run_adb_command(["adb", "connect", "127.0.0.1:7555"])

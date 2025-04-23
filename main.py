@@ -1,83 +1,73 @@
 #!/usr/bin/env python3
-import time
+import os
 import logging
-from typing import Dict, Any
-from adb import ScrcpyScreenshot
-import poker_ocr
-import cv2
-import numpy as np
+from datetime import datetime
+from src.vision.screen import ScreenCapture
+from src.vision.ocr import recognize_cards
+from src.core.game_controller import GameController
 
-class PokerGameMonitor:
-    def __init__(self):
-        # 初始化截图工具
-        self.screenshot = ScrcpyScreenshot()
-        
-        # 配置日志
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        # 游戏状态
-        self.last_hand_cards = []
-        self.last_public_cards = []
+def setup_logging():
+    """配置日志系统"""
+    # 创建日志目录
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # 设置日志级别
+    logging.basicConfig(level=logging.INFO)
+    
+    # 创建根日志记录器
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # 清除现有的处理器
+    root_logger.handlers = []
+    
+    # 创建文件处理器
+    log_file = os.path.join(log_dir, "game.log")
+    file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='w')  # 使用 'w' 模式覆盖旧日志
+    file_handler.setLevel(logging.INFO)
+    
+    # 创建控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # 创建格式化器
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # 添加处理器到根日志记录器
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    # 记录日志系统初始化
+    root_logger.info("日志系统初始化完成")
+    root_logger.info(f"日志文件路径: {log_file}")
 
-    def process_screenshot(self, image_path: str) -> Dict[str, Any]:
-        """处理截图并返回识别结果"""
-        try:
-            # 使用 OCR 识别扑克牌
-            result = poker_ocr.recognize_cards(image_path)
-            
-            # 检查是否有新的牌
-            hand_changed = result["handCards"] != self.last_hand_cards
-            public_changed = result["publicCards"] != self.last_public_cards
-            
-            if hand_changed or public_changed:
-                self.logger.info(f"手牌变化: {self.last_hand_cards} -> {result['handCards']}")
-                self.logger.info(f"公牌变化: {self.last_public_cards} -> {result['publicCards']}")
-                
-                # 更新状态
-                self.last_hand_cards = result["handCards"]
-                self.last_public_cards = result["publicCards"]
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"处理截图失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    def run(self):
-        """运行游戏监控"""
-        try:
-            while True:
-                # 获取截图
-                success, image_path = self.screenshot.take_screenshot()
-                if not success:
-                    self.logger.error(f"截图失败: {image_path}")
-                    time.sleep(1)
-                    continue
-                
-                # 处理截图并获取结果
-                result = self.process_screenshot(image_path)
-                self.logger.info(f"识别结果: {result}")
-                
-                # 等待一段时间
-                time.sleep(1)
-                
-        except KeyboardInterrupt:
-            self.logger.info("程序已停止")
-        except Exception as e:
-            self.logger.error(f"发生错误: {str(e)}")
-        finally:
-            self.screenshot._stop_scrcpy()
+def test_ocr():
+    """测试 OCR 功能"""
+    # 测试图片路径
+    test_image = "data/templates/5.png"
+    
+    # 识别图片
+    result = recognize_cards(test_image)
+    
+    # 打印识别结果
+    print("\n识别结果:")
+    print(f"公共牌: {[card['action'] for card in result['publicCards']]}")
+    print(f"手牌: {[card['action'] for card in result['handCards']]}")
+    print(f"可用动作: {[action['action'] for action in result['actions']]}")
 
 def main():
-    monitor = PokerGameMonitor()
-    monitor.run()
+    # 配置日志
+    setup_logging()
+    
+    # 先测试 OCR 功能
+    test_ocr()
+    
+    # 创建并运行游戏控制器
+    controller = GameController()
+    controller.run()
 
 if __name__ == "__main__":
     main()

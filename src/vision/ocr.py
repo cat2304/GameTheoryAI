@@ -24,6 +24,7 @@ REGION_RATIOS = {
 
 VALID_CARD   = set(["A","2","3","4","5","6","7","8","9","10","J","Q","K"])
 VALID_ACTION = set(["弃牌","加注","让牌","跟注"])
+
 def is_action(text: str) -> bool:
     return text in VALID_ACTION or "底池" in text
 
