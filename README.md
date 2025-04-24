@@ -202,41 +202,6 @@ MIT License
    - WARNING: 需要注意但不影响运行的问题
    - ERROR: 影响运行的问题
 
-### 代码示例
-```python
-def run(self) -> None:
-    """运行游戏监控主循环"""
-    try:
-        self.logger.info("开始游戏监控...")
-        while True:
-            # 第一步：获取截图
-            success, image_path = self._take_screenshot()
-            if not success:
-                time.sleep(self.SCREENSHOT_RETRY_DELAY)
-                continue
-            
-            # 第二步：识别截图
-            result = self._recognize_cards(image_path)
-            if not result["success"]:
-                time.sleep(self.SCREENSHOT_RETRY_DELAY)
-                continue
-            
-            # 第三步：处理决策
-            decision = self._process_recognition_result(result)
-            
-            # 第四步：执行决策
-            if decision:
-                self._execute_decision(decision)
-            
-            # 等待下一轮
-            time.sleep(self.GAME_LOOP_DELAY)
-            
-    except Exception as e:
-        self.logger.error(f"游戏监控发生错误: {str(e)}")
-    finally:
-        self.logger.info("清理资源...")
-```
-
 ### 注意事项
 1. 保持注释的简洁性和一致性
 2. 确保每个步骤都有明确的职责
