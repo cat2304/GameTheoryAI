@@ -61,27 +61,36 @@ class GameController:
                 "error": error_msg
             }
 
-    def _process_recognition_result(self, result: Dict[str, Any]) -> None:
-        """处理识别结果"""
+    def _process_recognition_result(self, result: Dict[str, Any]) -> Optional[str]:
+        """处理识别结果并返回决策"""
         if not result["success"]:
-            return
+            return None
 
         # 检测牌面变化并更新状态
         hand_changed, public_changed = self.game_state.detect_card_changes(result)
         
         if hand_changed or public_changed:
             self.game_state.update_cards(result)
-            self._make_and_execute_decision()
+            return self._make_decision()
         else:
             self.logger.info("牌面未发生变化")
+            return None
 
-    def _make_and_execute_decision(self) -> None:
-        """进行决策并执行"""
+    def _make_decision(self) -> Optional[str]:
+        """进行决策"""
         self.logger.info("开始决策过程...")
         decision = self.game_maker.make_decision(self.game_state)
         self.logger.info(f"决策结果: {decision}")
-        
-        self.game_clicker.execute_decision(decision)
+        return decision
+
+    def _execute_decision(self, decision: Optional[str]) -> bool:
+        """执行决策"""
+        if not decision:
+            self.logger.info("无需执行新的决策")
+            return False
+            
+        self.logger.info(f"执行决策: {decision}")
+        return self.game_clicker.execute_decision(decision)
 
     def run(self) -> None:
         """运行游戏监控主循环"""
@@ -100,8 +109,12 @@ class GameController:
                     time.sleep(self.SCREENSHOT_RETRY_DELAY)
                     continue
                 
-                # 第三步：处理识别结果
-                self._process_recognition_result(result)
+                # 第三步：处理决策
+                decision = self._process_recognition_result(result)
+                
+                # 第四步：执行决策
+                if decision:
+                    self._execute_decision(decision)
                 
                 # 等待下一轮
                 time.sleep(self.GAME_LOOP_DELAY)

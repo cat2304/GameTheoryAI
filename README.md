@@ -150,3 +150,96 @@ python main.py
 ## 许可证
 
 MIT License
+
+## 代码风格指南
+
+### 注释风格
+1. 步骤清晰：
+   - 每个方法都标注是第几步
+   - 注释直接说明方法的主要功能
+   - 去掉了冗长的参数和返回值说明
+
+2. 逻辑流程：
+   - 第一步：获取屏幕截图
+   - 第二步：识别截图中的牌面
+   - 第三步：处理决策
+   - 第四步：执行决策
+
+3. 注释风格：
+   - 简洁明了
+   - 直接说明功能
+   - 保持一致性
+
+### 代码组织
+1. 职责分离：
+   - 每个类和方法都有明确的单一职责
+   - 避免一个方法做多件事
+   - 保持代码模块化
+
+2. 流程清晰：
+   - 主流程步骤明确
+   - 每个步骤都有对应的处理方法
+   - 步骤之间的数据传递清晰
+
+3. 错误处理：
+   - 每个步骤都有适当的错误处理
+   - 错误信息清晰明确
+   - 失败后有合理的重试机制
+
+### 日志记录
+1. 日志格式：
+   - 时间戳
+   - 日志级别
+   - 简洁的消息内容
+
+2. 日志内容：
+   - 记录关键步骤
+   - 记录状态变化
+   - 记录错误信息
+
+3. 日志级别：
+   - INFO: 正常流程信息
+   - WARNING: 需要注意但不影响运行的问题
+   - ERROR: 影响运行的问题
+
+### 代码示例
+```python
+def run(self) -> None:
+    """运行游戏监控主循环"""
+    try:
+        self.logger.info("开始游戏监控...")
+        while True:
+            # 第一步：获取截图
+            success, image_path = self._take_screenshot()
+            if not success:
+                time.sleep(self.SCREENSHOT_RETRY_DELAY)
+                continue
+            
+            # 第二步：识别截图
+            result = self._recognize_cards(image_path)
+            if not result["success"]:
+                time.sleep(self.SCREENSHOT_RETRY_DELAY)
+                continue
+            
+            # 第三步：处理决策
+            decision = self._process_recognition_result(result)
+            
+            # 第四步：执行决策
+            if decision:
+                self._execute_decision(decision)
+            
+            # 等待下一轮
+            time.sleep(self.GAME_LOOP_DELAY)
+            
+    except Exception as e:
+        self.logger.error(f"游戏监控发生错误: {str(e)}")
+    finally:
+        self.logger.info("清理资源...")
+```
+
+### 注意事项
+1. 保持注释的简洁性和一致性
+2. 确保每个步骤都有明确的职责
+3. 保持代码的可读性和可维护性
+4. 遵循单一职责原则
+5. 保持错误处理的完整性
