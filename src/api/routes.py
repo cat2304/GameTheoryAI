@@ -28,7 +28,6 @@ class ClickRequest(BaseModel):
     y: int
 
 class OCRRequest(BaseModel):
-    device_id: str
     image_path: str
 
 class DeviceRequest(BaseModel):
@@ -175,10 +174,7 @@ async def ocr_recognize(request: OCRRequest):
     return ApiResponse(
         success=success,
         message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data={
-            "device_id": request.device_id,
-            **result
-        } if success else None
+        data=result if success else None
     )
 
 @app.post("/api/ocr/recognize_all", response_model=ApiResponse)
@@ -186,15 +182,11 @@ async def ocr_recognize_all(request: OCRRequest):
     """全图文字识别接口
     
     识别图片中的所有文字，并返回每个文字的位置、置信度等信息。
-    同时会生成一个标注了识别结果的图片。
     """
     success, result = full_ocr_processor.recognize_all_text(request.image_path)
     
     return ApiResponse(
         success=success,
         message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data={
-            "device_id": request.device_id,
-            **result
-        } if success else None
+        data=result if success else None
     ) 
