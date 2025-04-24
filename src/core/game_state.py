@@ -62,13 +62,13 @@ class GameState:
         Args:
             result: OCR识别结果
         """
-        self.last_hand_cards = result["handCards"]
-        self.last_public_cards = result["publicCards"]
+        self.last_hand_cards = result.get("handCards", [])
+        self.last_public_cards = result.get("publicCards", [])
         
         # 更新游戏状态
         self.update_game_state(
-            [card["action"] for card in result["handCards"]],
-            [card["action"] for card in result["publicCards"]]
+            self.last_hand_cards,
+            self.last_public_cards
         )
     
     def update_pot(self, new_pot: int):
@@ -97,13 +97,18 @@ class GameState:
         Returns:
             Tuple[bool, bool]: (手牌是否变化, 公牌是否变化)
         """
-        hand_changed = result["handCards"] != self.last_hand_cards
-        public_changed = result["publicCards"] != self.last_public_cards
+        # 获取当前识别结果中的牌面信息
+        current_hand_cards = result.get("handCards", [])
+        current_public_cards = result.get("publicCards", [])
+        
+        # 比较变化
+        hand_changed = current_hand_cards != self.last_hand_cards
+        public_changed = current_public_cards != self.last_public_cards
         
         if hand_changed or public_changed:
             self.logger.info(f"检测到牌面变化:")
-            self.logger.info(f"手牌变化: {self.last_hand_cards} -> {result['handCards']}")
-            self.logger.info(f"公牌变化: {self.last_public_cards} -> {result['publicCards']}")
+            self.logger.info(f"手牌变化: {self.last_hand_cards} -> {current_hand_cards}")
+            self.logger.info(f"公牌变化: {self.last_public_cards} -> {current_public_cards}")
         
         return hand_changed, public_changed
 

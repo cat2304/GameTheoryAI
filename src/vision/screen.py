@@ -2,12 +2,8 @@ import os
 import time
 import subprocess
 import logging
-import threading
-import queue
 import cv2
 import numpy as np
-from datetime import datetime
-from pathlib import Path
 from typing import Tuple, Optional
 
 class ScreenCapture:
@@ -18,12 +14,8 @@ class ScreenCapture:
         self.logger = logging.getLogger(__name__)
         
         # 设置输出目录
-        date_folder = datetime.now().strftime("%Y%m%d")
-        self.output_dir = os.path.join(output_dir, date_folder)
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
-        
-        # 初始化图像队列
-        self.frame_queue = queue.Queue(maxsize=5)
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
         
         # 获取设备ID
         self.device_id = self._get_device_id()
@@ -32,10 +24,6 @@ class ScreenCapture:
             
         # 等待ADB连接完全建立
         time.sleep(2)
-        
-        # 启动截图线程
-        self.capture_thread = threading.Thread(target=self._capture_frames, daemon=True)
-        self.capture_thread.start()
     
     def _get_device_id(self) -> Optional[str]:
         """获取可用的设备ID"""
@@ -64,96 +52,40 @@ class ScreenCapture:
             self.logger.error(f"获取设备ID失败: {e}")
             return None
     
-    def _capture_frames(self):
-        """持续捕获屏幕帧"""
-        current_index = 1  # 当前使用的图片索引
+    def take_screenshot(self) -> Tuple[bool, str]:
+        """获取屏幕截图
         
-        while True:
-            try:
-                # 执行截图命令
-                result = subprocess.run([
-                    "adb", "-s", self.device_id, "exec-out", "screencap -p"
-                ], capture_output=True)
-                
-                if result.returncode != 0:
-                    self.logger.error(f"截图失败: {result.stderr.decode()}")
-                    time.sleep(2)
-                    continue
-                
-                # 转换图像数据
-                nparr = np.frombuffer(result.stdout, np.uint8)
-                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
-                if frame is None:
-                    self.logger.error("无法解码图像数据")
-                    time.sleep(2)
-                    continue
-                
-                # 使用固定的文件名
-                filename = f"screen_{current_index}.png"
-                filepath = os.path.join(self.output_dir, filename)
-                
-                # 保存图像
-                cv2.imwrite(filepath, frame)
-                self.logger.info(f"截图已保存: {filepath}")
-                
-                # 更新队列
-                if not self.frame_queue.full():
-                    self.frame_queue.put(filepath)
-                else:
-                    try:
-                        self.frame_queue.get_nowait()
-                        self.frame_queue.put(filepath)
-                    except queue.Empty:
-                        pass
-                
-                # 更新索引，循环使用1-5
-                current_index = (current_index % 5) + 1
-                
-                # 控制截图频率
-                time.sleep(5)
-                
-            except Exception as e:
-                self.logger.error(f"捕获帧失败: {e}")
-                time.sleep(2)
-    
-    def take_screenshot(self) -> Tuple[bool, Optional[str]]:
-        """获取一张截图"""
+        Returns:
+            Tuple[bool, str]: (是否成功, 图片路径或错误信息)
+        """
         try:
-            # 从队列获取最新帧
-            try:
-                filepath = self.frame_queue.get(timeout=1.0)
-                return True, filepath
-            except queue.Empty:
-                # 如果队列为空，直接执行一次截图
-                result = subprocess.run([
-                    "adb", "-s", self.device_id, "exec-out", "screencap -p"
-                ], capture_output=True)
-                
-                if result.returncode != 0:
-                    self.logger.error(f"截图失败: {result.stderr.decode()}")
-                    return False, "截图失败"
-                
-                # 转换图像数据
-                nparr = np.frombuffer(result.stdout, np.uint8)
-                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
-                if frame is None:
-                    self.logger.error("无法解码图像数据")
-                    return False, "无法解码图像数据"
-                
-                # 使用固定的文件名
-                filename = f"screen_1.png"
-                filepath = os.path.join(self.output_dir, filename)
-                
-                # 保存图像
-                cv2.imwrite(filepath, frame)
-                self.logger.info(f"截图已保存: {filepath}")
-                return True, filepath
+            # 执行截图命令
+            result = subprocess.run([
+                "adb", "-s", self.device_id, "exec-out", "screencap -p"
+            ], capture_output=True)
+            
+            if result.returncode != 0:
+                self.logger.error(f"截图失败: {result.stderr.decode()}")
+                return False, result.stderr.decode()
+            
+            # 转换图像数据
+            nparr = np.frombuffer(result.stdout, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if frame is None:
+                self.logger.error("无法解码图像数据")
+                return False, "无法解码图像数据"
+            
+            # 使用固定的文件名
+            filepath = os.path.join(self.output_dir, "latest.png")
+            cv2.imwrite(filepath, frame)
+            self.logger.info(f"截图已保存: {filepath}")
+            return True, filepath
             
         except Exception as e:
-            self.logger.error(f"截图失败: {e}")
-            return False, str(e)
+            error_msg = f"截图失败: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
 
 def main():
     """主函数"""

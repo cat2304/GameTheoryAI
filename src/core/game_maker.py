@@ -76,9 +76,12 @@ class GameMaker:
 
     def _evaluate_preflop(self, hand: List[str]) -> HandRank:
         """评估翻牌前的牌型"""
-        if hand[0] == hand[1]:
+        if not hand:  # 如果手牌为空
+            return HandRank.HIGH_CARD
+            
+        if len(hand) >= 2 and hand[0] == hand[1]:
             return HandRank.PAIR
-        if all(card in {"A", "K", "Q"} for card in hand):
+        if len(hand) >= 2 and all(card in {"A", "K", "Q"} for card in hand):
             return HandRank.TWO_HIGH_CARDS
         return HandRank.HIGH_CARD
 
