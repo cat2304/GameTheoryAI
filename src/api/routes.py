@@ -23,14 +23,19 @@ full_ocr_processor = FullOCRProcessor()
 
 # 请求模型
 class ClickRequest(BaseModel):
+    device_id: str
     x: int
     y: int
 
 class OCRRequest(BaseModel):
+    device_id: str
     image_path: str
 
 class DeviceRequest(BaseModel):
-    device_id: Optional[str] = None
+    device_id: str
+
+class EmptyRequest(BaseModel):
+    pass
 
 # 响应模型
 class ApiResponse(BaseModel):
@@ -43,8 +48,8 @@ class DeviceInfo(BaseModel):
     status: str
     screen_size: Optional[Dict[str, int]] = None
 
-@app.get("/api/device/list", response_model=ApiResponse)
-async def list_devices():
+@app.post("/api/device/list", response_model=ApiResponse)
+async def list_devices(request: EmptyRequest):
     """获取所有已连接的设备列表"""
     try:
         devices = adb_controller.list_devices()
@@ -59,25 +64,27 @@ async def list_devices():
             message=f"获取设备列表失败: {str(e)}"
         )
 
-@app.get("/api/device/current", response_model=ApiResponse)
-async def get_current_device():
+@app.post("/api/device/current", response_model=ApiResponse)
+async def get_current_device(request: DeviceRequest):
     """获取当前连接的设备信息"""
     try:
-        device_id = adb_controller.device_id
-        if not device_id:
+        screen_size = adb_controller.get_screen_size(request.device_id)
+        if not screen_size:
             return ApiResponse(
                 success=False,
-                message="当前没有连接的设备"
+                message="获取设备信息失败"
             )
         
-        screen_size = adb_controller.get_screen_size()
         return ApiResponse(
             success=True,
             message="获取设备信息成功",
             data={
-                "device_id": device_id,
+                "device_id": request.device_id,
                 "status": "connected",
-                "screen_size": screen_size
+                "screen_size": {
+                    "width": screen_size[0],
+                    "height": screen_size[1]
+                }
             }
         )
     except Exception as e:
@@ -109,7 +116,7 @@ async def connect_device(request: DeviceRequest):
         )
 
 @app.post("/api/device/disconnect", response_model=ApiResponse)
-async def disconnect_device():
+async def disconnect_device(request: DeviceRequest):
     """断开当前设备连接"""
     try:
         success = adb_controller.disconnect_device()
@@ -132,12 +139,13 @@ async def disconnect_device():
 @app.post("/api/mumu/click", response_model=ApiResponse)
 async def adb_click(request: ClickRequest):
     """ADB点击接口"""
-    success, message = adb_controller.click(request.x, request.y)
+    success, message = adb_controller.click(request.device_id, request.x, request.y)
     
     return ApiResponse(
         success=success,
         message=message,
         data={
+            "device_id": request.device_id,
             "x": request.x,
             "y": request.y,
             "timestamp": time.time()
@@ -145,14 +153,15 @@ async def adb_click(request: ClickRequest):
     )
 
 @app.post("/api/mumu/screenshot", response_model=ApiResponse)
-async def mumu_screenshot():
+async def mumu_screenshot(request: DeviceRequest):
     """截屏接口"""
-    success, result = screen_capture.capture()
+    success, result = screen_capture.capture(request.device_id)
     
     return ApiResponse(
         success=success,
         message="截图成功" if success else f"截图失败: {result}",
         data={
+            "device_id": request.device_id,
             "path": result,
             "timestamp": time.time()
         } if success else None
@@ -166,7 +175,10 @@ async def ocr_recognize(request: OCRRequest):
     return ApiResponse(
         success=success,
         message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data=result if success else None
+        data={
+            "device_id": request.device_id,
+            **result
+        } if success else None
     )
 
 @app.post("/api/ocr/recognize_all", response_model=ApiResponse)
@@ -181,5 +193,8 @@ async def ocr_recognize_all(request: OCRRequest):
     return ApiResponse(
         success=success,
         message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data=result if success else None
+        data={
+            "device_id": request.device_id,
+            **result
+        } if success else None
     ) 

@@ -9,59 +9,27 @@ from typing import Tuple, Optional
 class ScreenCapture:
     """屏幕捕获类，用于获取Android设备屏幕截图"""
     
-    def __init__(self, output_dir: str = "data/screenshots"):
+    def __init__(self, screenshot_dir: str = "data/screenshots"):
         # 设置日志
         self.logger = logging.getLogger(__name__)
         
         # 设置输出目录
-        self.output_dir = output_dir
+        self.output_dir = screenshot_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        
-        # 获取设备ID
-        self.device_id = self._get_device_id()
-        if not self.device_id:
-            raise RuntimeError("未找到可用的设备")
-            
-        # 等待ADB连接完全建立
-        time.sleep(2)
     
-    def _get_device_id(self) -> Optional[str]:
-        """获取可用的设备ID"""
-        try:
-            # 重启 adb 服务器
-            subprocess.run(['adb', 'kill-server'], capture_output=True)
-            time.sleep(1)
-            subprocess.run(['adb', 'start-server'], capture_output=True)
-            time.sleep(1)
-            
-            # 获取设备列表
-            result = subprocess.run(['adb', 'devices'], capture_output=True, text=True)
-            devices = result.stdout.strip().split('\n')[1:]  # 跳过第一行标题
-            
-            # 查找已连接的设备
-            for device in devices:
-                if device.strip() and 'device' in device:
-                    device_id = device.split('\t')[0]
-                    self.logger.info(f"找到设备: {device_id}")
-                    return device_id
-            
-            self.logger.error("未找到已连接的设备")
-            return None
-            
-        except Exception as e:
-            self.logger.error(f"获取设备ID失败: {e}")
-            return None
-    
-    def take_screenshot(self) -> Tuple[bool, str]:
+    def capture(self, device_id: str) -> Tuple[bool, str]:
         """获取屏幕截图
         
+        Args:
+            device_id: 设备ID
+            
         Returns:
             Tuple[bool, str]: (是否成功, 图片路径或错误信息)
         """
         try:
             # 执行截图命令
             result = subprocess.run([
-                "adb", "-s", self.device_id, "exec-out", "screencap -p"
+                "adb", "-s", device_id, "exec-out", "screencap -p"
             ], capture_output=True)
             
             if result.returncode != 0:
@@ -87,13 +55,43 @@ class ScreenCapture:
             self.logger.error(error_msg)
             return False, error_msg
 
-    def capture(self) -> Tuple[bool, str]:
-        """获取屏幕截图
+    def capture_region(self, device_id: str, x: int, y: int, width: int, height: int) -> Tuple[bool, str]:
+        """获取指定区域截图
         
+        Args:
+            device_id: 设备ID
+            x: 起始x坐标
+            y: 起始y坐标
+            width: 宽度
+            height: 高度
+            
         Returns:
             Tuple[bool, str]: (是否成功, 图片路径或错误信息)
         """
-        return self.take_screenshot()
+        try:
+            # 先获取全屏截图
+            success, full_image = self.capture(device_id)
+            if not success:
+                return False, full_image
+            
+            # 读取图片
+            img = cv2.imread(full_image)
+            if img is None:
+                return False, "无法读取截图"
+            
+            # 裁剪指定区域
+            roi = img[y:y+height, x:x+width]
+            
+            # 保存区域截图
+            region_path = os.path.join(self.output_dir, f"region_{x}_{y}_{width}_{height}.png")
+            cv2.imwrite(region_path, roi)
+            
+            return True, region_path
+            
+        except Exception as e:
+            error_msg = f"区域截图失败: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
 
 def main():
     """主函数"""
@@ -104,11 +102,19 @@ def main():
         # 创建截图实例
         screen_capture = ScreenCapture()
         
-        # 等待截图线程启动
-        time.sleep(2)
+        # 获取设备列表
+        result = subprocess.run(['adb', 'devices'], capture_output=True, text=True)
+        devices = result.stdout.strip().split('\n')[1:]
+        
+        if not devices:
+            print("未找到已连接的设备")
+            return
+            
+        # 使用第一个设备
+        device_id = devices[0].split('\t')[0]
         
         # 获取截图
-        success, result = screen_capture.take_screenshot()
+        success, result = screen_capture.capture(device_id)
         if success:
             print(f"成功获取截图: {result}")
         else:
