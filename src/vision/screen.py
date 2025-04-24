@@ -29,6 +29,9 @@ class ScreenCapture:
         self.device_id = self._get_device_id()
         if not self.device_id:
             raise RuntimeError("未找到可用的设备")
+            
+        # 等待ADB连接完全建立
+        time.sleep(2)
         
         # 启动截图线程
         self.capture_thread = threading.Thread(target=self._capture_frames, daemon=True)

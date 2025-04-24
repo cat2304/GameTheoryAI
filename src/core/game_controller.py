@@ -1,6 +1,6 @@
 import time
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from src.vision.screen import ScreenCapture
 from src.vision.ocr import recognize_cards
 from src.core.game_state import GameState, GameRound
@@ -83,14 +83,14 @@ class GameController:
         self.logger.info(f"决策结果: {decision}")
         return decision
 
-    def _execute_decision(self, decision: Optional[str]) -> bool:
+    def _execute_decision(self, decision: Optional[str], actions: List[Dict[str, Any]]) -> bool:
         """执行决策"""
         if not decision:
             self.logger.info("无需执行新的决策")
             return False
             
         self.logger.info(f"执行决策: {decision}")
-        return self.game_clicker.execute_decision(decision)
+        return self.game_executor.execute_decision(decision, actions)
 
     def run(self) -> None:
         """运行游戏监控主循环"""
@@ -114,7 +114,7 @@ class GameController:
                 
                 # 第四步：执行决策
                 if decision:
-                    self._execute_decision(decision)
+                    self._execute_decision(decision, result["actions"])
                 
                 # 等待下一轮
                 time.sleep(self.GAME_LOOP_DELAY)

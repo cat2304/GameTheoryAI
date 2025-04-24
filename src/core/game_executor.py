@@ -1,67 +1,87 @@
 import logging
-from src.core.game_click import GameClicker
+import sys
+import os
+
+# 添加项目根目录到 Python 路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from src.utils.adb import ADBController
+from typing import Dict, Any, List, Tuple, Optional
 
 class GameExecutor:
     def __init__(self):
-        """初始化执行模块"""
+        """第一步：初始化执行模块"""
         self.logger = logging.getLogger(__name__)
         self.logger.info("初始化游戏执行模块...")
         self.adb = ADBController()
-        self.clicker = GameClicker(self.adb.device_id)
-        self.logger.info("点击控制模块初始化完成")
+        self.logger.info("执行模块初始化完成")
 
-    def execute_decision(self, decision: str) -> bool:
-        """执行决策"""
+    def execute_decision(self, decision: str, actions: List[Dict[str, Any]]) -> bool:
+        """执行决策流程"""
         try:
-            self.logger.info(f"开始执行决策: {decision}")
+            # 第一步：记录决策信息
+            self.logger.info(f"执行决策: {decision}")
             
-            # 第一步：将决策映射到具体操作
-            action = self._map_decision_to_action(decision)
-            if not action:
-                return False
-                
-            # 第二步：获取操作按钮位置
-            position = self.clicker.get_action_position(action)
-            if not position:
-                self.logger.warning(f"未找到{action}按钮位置")
-                return False
-                
-            # 第三步：获取屏幕尺寸
-            screen_size = self.adb.get_screen_size()
-            if not screen_size:
-                self.logger.error("获取屏幕尺寸失败")
-                return False
-                
-            # 第四步：执行点击操作
-            return self._execute_click(position, screen_size)
+            # 第二步：查找对应按钮
+            for btn in actions:
+                if btn["action"] == decision:
+                    # 第三步：计算点击坐标
+                    box = btn["box"]
+                    x = sum(point[0] for point in box) // 4
+                    y = sum(point[1] for point in box) // 4
+                    
+                    # 第四步：执行点击
+                    self.logger.info(f"点击按钮: ({x}, {y})")
+                    return self.adb.execute_click(x, y)
+                    
+            # 未找到按钮
+            self.logger.warning(f"未找到按钮: {decision}")
+            return False
                 
         except Exception as e:
-            self.logger.error(f"执行决策失败: {str(e)}")
+            # 错误处理
+            self.logger.error(f"执行失败: {str(e)}")
             return False
 
-    def _map_decision_to_action(self, decision: str) -> str:
-        """将决策映射到具体操作"""
-        action_map = {
-            "加注": "加注",
-            "跟注": "跟注",
-            "弃牌": "弃牌",
-            "让牌": "让牌"
+def main():
+    """测试让牌按钮点击"""
+    # 第一步：配置日志
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    
+    # 第二步：创建执行器
+    executor = GameExecutor()
+    
+    # 第三步：准备测试数据
+    test_actions = [
+        {
+            "action": "底池",
+            "box": [[299.0, 1124.0], [348.0, 1124.0], [348.0, 1152.0], [299.0, 1152.0]]
+        },
+        {
+            "action": "底池",
+            "box": [[416.0, 1124.0], [467.0, 1124.0], [467.0, 1152.0], [416.0, 1152.0]]
+        },
+        {
+            "action": "底池",
+            "box": [[535.0, 1124.0], [583.0, 1124.0], [583.0, 1152.0], [535.0, 1152.0]]
+        },
+        {
+            "action": "弃牌",
+            "box": [[298.0, 1241.0], [349.0, 1241.0], [349.0, 1269.0], [298.0, 1269.0]]
+        },
+        {
+            "action": "加注",
+            "box": [[414.0, 1241.0], [468.0, 1241.0], [468.0, 1269.0], [414.0, 1269.0]]
+        },
+        {
+            "action": "让牌",
+            "box": [[534.0, 1241.0], [584.0, 1241.0], [584.0, 1269.0], [534.0, 1269.0]]
         }
-        
-        if decision in action_map:
-            action = action_map[decision]
-            self.logger.info(f"执行{action}操作")
-            return action
-        else:
-            self.logger.warning(f"未知的决策: {decision}")
-            return ""
+    ]
+    
+    # 第四步：执行测试
+    success = executor.execute_decision("让牌", test_actions)
+    print(f"点击结果: {'成功' if success else '失败'}")
 
-    def _execute_click(self, position: tuple, screen_size: tuple) -> bool:
-        """执行点击操作"""
-        width, height = screen_size
-        x = int(width * position[0])
-        y = int(height * position[1])
-        
-        self.logger.info(f"点击坐标: ({x}, {y})")
-        return self.adb.execute_click(x, y) 
+if __name__ == "__main__":
+    main() 
