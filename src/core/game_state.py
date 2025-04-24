@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, Tuple
 from enum import Enum
 import logging
 
@@ -45,6 +45,10 @@ class GameState:
         if self.public_cards is None:
             self.public_cards = []
         self.logger = logging.getLogger(__name__)
+        self.last_hand_cards = []
+        self.last_public_cards = []
+        self.last_action = None
+        self.logger.info("游戏状态初始化完成")
     
     def update_round(self, new_round: GameRound):
         """更新当前轮次"""
@@ -52,12 +56,20 @@ class GameState:
         self.current_round = new_round
         self.current_bet = 0
     
-    def update_cards(self, hand_cards: List[str], public_cards: List[str]):
-        """更新牌面信息"""
-        self.logger.info(f"更新手牌: {self.hand_cards} -> {hand_cards}")
-        self.logger.info(f"更新公牌: {self.public_cards} -> {public_cards}")
-        self.hand_cards = hand_cards
-        self.public_cards = public_cards
+    def update_cards(self, result: Dict[str, Any]) -> None:
+        """更新游戏状态
+        
+        Args:
+            result: OCR识别结果
+        """
+        self.last_hand_cards = result["handCards"]
+        self.last_public_cards = result["publicCards"]
+        
+        # 更新游戏状态
+        self.update_game_state(
+            [card["action"] for card in result["handCards"]],
+            [card["action"] for card in result["publicCards"]]
+        )
     
     def update_pot(self, new_pot: int):
         """更新底池大小"""
@@ -76,6 +88,53 @@ class GameState:
         self.logger.info(f"更新动作: {self.last_action} -> {action}")
         self.last_action = action
     
+    def detect_card_changes(self, result: Dict[str, Any]) -> Tuple[bool, bool]:
+        """检测牌面变化
+        
+        Args:
+            result: OCR识别结果
+            
+        Returns:
+            Tuple[bool, bool]: (手牌是否变化, 公牌是否变化)
+        """
+        hand_changed = result["handCards"] != self.last_hand_cards
+        public_changed = result["publicCards"] != self.last_public_cards
+        
+        if hand_changed or public_changed:
+            self.logger.info(f"检测到牌面变化:")
+            self.logger.info(f"手牌变化: {self.last_hand_cards} -> {result['handCards']}")
+            self.logger.info(f"公牌变化: {self.last_public_cards} -> {result['publicCards']}")
+        
+        return hand_changed, public_changed
+
+    def update_game_state(self, hand_cards: List[str], public_cards: List[str]) -> None:
+        """更新游戏状态
+        
+        Args:
+            hand_cards: 手牌列表
+            public_cards: 公牌列表
+        """
+        self.logger.info(f"更新手牌: {self.hand_cards} -> {hand_cards}")
+        self.logger.info(f"更新公牌: {self.public_cards} -> {public_cards}")
+        
+        # 更新手牌和公牌
+        self.hand_cards = hand_cards
+        self.public_cards = public_cards
+        
+        # 根据公牌数量更新当前轮次
+        if len(public_cards) == 0:
+            self.current_round = GameRound.PREFLOP
+        elif len(public_cards) == 3:
+            self.current_round = GameRound.FLOP
+        elif len(public_cards) == 4:
+            self.current_round = GameRound.TURN
+        elif len(public_cards) == 5:
+            self.current_round = GameRound.RIVER
+            
+        self.logger.info(f"当前回合: {self.current_round}")
+        self.logger.info(f"手牌: {self.hand_cards}")
+        self.logger.info(f"公牌: {self.public_cards}")
+
     def to_dict(self) -> Dict:
         """转换为字典格式"""
         return {
