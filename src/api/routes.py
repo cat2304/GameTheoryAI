@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
 
 from src.core.adb import ADBController
@@ -27,11 +27,105 @@ class ClickRequest(BaseModel):
 class OCRRequest(BaseModel):
     image_path: str
 
+class DeviceRequest(BaseModel):
+    device_id: Optional[str] = None
+
 # 响应模型
 class ApiResponse(BaseModel):
     success: bool
     message: str
     data: Optional[Dict[str, Any]] = None
+
+class DeviceInfo(BaseModel):
+    device_id: str
+    status: str
+    screen_size: Optional[Dict[str, int]] = None
+
+@app.get("/api/device/list", response_model=ApiResponse)
+async def list_devices():
+    """获取所有已连接的设备列表"""
+    try:
+        devices = adb_controller.list_devices()
+        return ApiResponse(
+            success=True,
+            message="获取设备列表成功",
+            data={"devices": devices}
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"获取设备列表失败: {str(e)}"
+        )
+
+@app.get("/api/device/current", response_model=ApiResponse)
+async def get_current_device():
+    """获取当前连接的设备信息"""
+    try:
+        device_id = adb_controller.device_id
+        if not device_id:
+            return ApiResponse(
+                success=False,
+                message="当前没有连接的设备"
+            )
+        
+        screen_size = adb_controller.get_screen_size()
+        return ApiResponse(
+            success=True,
+            message="获取设备信息成功",
+            data={
+                "device_id": device_id,
+                "status": "connected",
+                "screen_size": screen_size
+            }
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"获取设备信息失败: {str(e)}"
+        )
+
+@app.post("/api/device/connect", response_model=ApiResponse)
+async def connect_device(request: DeviceRequest):
+    """连接指定设备"""
+    try:
+        success = adb_controller.connect_device(request.device_id)
+        if success:
+            return ApiResponse(
+                success=True,
+                message="设备连接成功",
+                data={"device_id": request.device_id}
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="设备连接失败"
+            )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"设备连接失败: {str(e)}"
+        )
+
+@app.post("/api/device/disconnect", response_model=ApiResponse)
+async def disconnect_device():
+    """断开当前设备连接"""
+    try:
+        success = adb_controller.disconnect_device()
+        if success:
+            return ApiResponse(
+                success=True,
+                message="设备断开连接成功"
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="设备断开连接失败"
+            )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"设备断开连接失败: {str(e)}"
+        )
 
 @app.post("/api/mumu/click", response_model=ApiResponse)
 async def adb_click(request: ClickRequest):

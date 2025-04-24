@@ -1,7 +1,7 @@
 import subprocess
 import time
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 
 class ADBController:
     def __init__(self, device_id: Optional[str] = None):
@@ -38,6 +38,93 @@ class ADBController:
         except Exception as e:
             self.logger.error(f"获取设备ID失败: {e}")
             return None
+
+    def list_devices(self) -> List[Dict[str, str]]:
+        """获取所有已连接的设备列表
+        
+        Returns:
+            List[Dict[str, str]]: 设备列表，每个设备包含 id 和 status
+        """
+        try:
+            result = subprocess.run(['adb', 'devices'], capture_output=True, text=True)
+            devices = result.stdout.strip().split('\n')[1:]  # 跳过第一行标题
+            
+            device_list = []
+            for device in devices:
+                if device.strip():
+                    device_id, status = device.split('\t')
+                    device_list.append({
+                        "id": device_id,
+                        "status": status
+                    })
+            
+            return device_list
+        except Exception as e:
+            self.logger.error(f"获取设备列表失败: {e}")
+            return []
+
+    def connect_device(self, device_id: Optional[str] = None) -> bool:
+        """连接指定设备
+        
+        Args:
+            device_id: 设备ID，如果为None则使用当前设备ID
+            
+        Returns:
+            bool: 是否连接成功
+        """
+        try:
+            target_id = device_id or self.device_id
+            if not target_id:
+                self.logger.error("未指定设备ID")
+                return False
+                
+            # 检查设备是否已连接
+            result = subprocess.run(['adb', 'devices'], capture_output=True, text=True)
+            devices = result.stdout.strip().split('\n')[1:]
+            for device in devices:
+                if device.strip() and target_id in device and 'device' in device:
+                    self.device_id = target_id
+                    self.logger.info(f"设备已连接: {target_id}")
+                    return True
+            
+            # 尝试连接设备
+            result = subprocess.run(['adb', 'connect', target_id], capture_output=True, text=True)
+            if 'connected' in result.stdout:
+                self.device_id = target_id
+                self.logger.info(f"设备连接成功: {target_id}")
+                return True
+            else:
+                self.logger.error(f"设备连接失败: {result.stdout}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"连接设备失败: {e}")
+            return False
+
+    def disconnect_device(self) -> bool:
+        """断开当前设备连接
+        
+        Returns:
+            bool: 是否断开成功
+        """
+        try:
+            if not self.device_id:
+                self.logger.error("当前没有连接的设备")
+                return False
+                
+            # 断开设备连接
+            result = subprocess.run(['adb', 'disconnect', self.device_id], capture_output=True, text=True)
+            if 'disconnected' in result.stdout:
+                self.device_id = None
+                self.logger.info("设备断开连接成功")
+                return True
+            else:
+                self.logger.error(f"设备断开连接失败: {result.stdout}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"断开设备连接失败: {e}")
+            return False
 
     def get_screen_size(self) -> Optional[Tuple[int, int]]:
         """获取屏幕尺寸"""
