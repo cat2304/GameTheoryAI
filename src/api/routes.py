@@ -6,6 +6,7 @@ import time
 from src.core.adb import ADBController
 from src.core.screen import ScreenCapture
 from src.core.ocr import OCRProcessor
+from src.core.ocrall import OCRProcessor as FullOCRProcessor
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -18,6 +19,7 @@ app = FastAPI(
 adb_controller = ADBController()
 screen_capture = ScreenCapture()
 ocr_processor = OCRProcessor()
+full_ocr_processor = FullOCRProcessor()
 
 # 请求模型
 class ClickRequest(BaseModel):
@@ -160,6 +162,21 @@ async def mumu_screenshot():
 async def ocr_recognize(request: OCRRequest):
     """OCR识别接口"""
     success, result = ocr_processor.recognize(request.image_path)
+    
+    return ApiResponse(
+        success=success,
+        message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+        data=result if success else None
+    )
+
+@app.post("/api/ocr/recognize_all", response_model=ApiResponse)
+async def ocr_recognize_all(request: OCRRequest):
+    """全图文字识别接口
+    
+    识别图片中的所有文字，并返回每个文字的位置、置信度等信息。
+    同时会生成一个标注了识别结果的图片。
+    """
+    success, result = full_ocr_processor.recognize_all_text(request.image_path)
     
     return ApiResponse(
         success=success,
