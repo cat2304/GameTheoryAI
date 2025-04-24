@@ -1,39 +1,78 @@
-# GameTheoryAI - 德州扑克 AI 助手
+# Mumu模拟器控制服务
 
-这是一个基于计算机视觉和游戏理论的德州扑克 AI 助手，能够自动识别游戏画面中的牌面信息并做出相应的决策。
+## 快速开始
 
-## 功能特点
+### 1. 环境准备
+- Python 3.8+
+- ADB工具
+- Mumu模拟器
 
-- 实时屏幕捕获和图像识别
-- 基于 PaddleOCR 的高精度卡牌识别
-- 智能游戏状态跟踪
-- 基于游戏理论的决策系统
-- 自动化操作执行
-- 详细的日志记录系统
-
-## 系统要求
-
-- Python 3.8 或更高版本
-- macOS/Linux/Windows
-- ADB（用于模拟器控制）
-
-## 安装步骤
-
-1. 克隆项目代码：
-```bash
-git clone https://github.com/yourusername/GameTheoryAI.git
-cd GameTheoryAI
-```
-
-2. 创建并激活虚拟环境：
-```bash
-conda create -n gameai python=3.8
-conda activate gameai
-```
-
-3. 安装依赖：
+### 2. 安装依赖
 ```bash
 pip install -r requirements.txt
+```
+
+### 3. 启动服务
+```bash
+python main.py
+```
+
+## API接口
+
+### 1. 点击操作
+```bash
+curl -X POST http://localhost:8000/api/mumu/click \
+  -H "Content-Type: application/json" \
+  -d '{"x": 100, "y": 200}'
+```
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "点击成功",
+    "data": {
+        "x": 100,
+        "y": 200,
+        "timestamp": 1234567890.123
+    }
+}
+```
+
+### 2. 截屏操作
+```bash
+curl -X POST http://localhost:8000/api/mumu/screenshot
+```
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "截图成功",
+    "data": {
+        "path": "data/screenshots/screenshot_1234567890.png",
+        "timestamp": 1234567890
+    }
+}
+```
+
+### 3. OCR识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "data/screenshots/screenshot_1234567890.png"}'
+```
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "text": "识别结果",
+        "confidence": 0.95
+    }
+}
 ```
 
 ## 项目结构
@@ -53,105 +92,33 @@ GameTheoryAI/
 └── README.md          # 项目说明文档
 ```
 
-## 使用方法
+## 核心业务逻辑
 
-1. 确保已经设置好 ADB 并连接到模拟器：
-```bash
-adb devices
-```
+### 1. 程序入口 (main.py)
+- 配置日志系统
+- 创建必要的目录结构
+- 启动异步截图线程
+- 初始化游戏控制器
+- 进入主循环
 
-2. 运行主程序：
-```bash
-python main.py
-```
+### 2. 异步截图模块 (src/vision/screen.py)
+- 每5秒执行一次截图
+- 保存截图到 `data/screenshots/latest.png`
+- 处理截图异常情况
+- 提供截图状态反馈
 
-3. 程序会自动：
-   - 捕获游戏画面
-   - 识别牌面信息
-   - 分析游戏状态
-   - 执行最优决策
+### 3. 游戏控制器 (src/core/game_controller.py)
 
-## 配置说明
+## 环境要求
+- Python 3.8+
+- OpenCV
+- ADB工具
+- 其他依赖见 requirements.txt
 
-主要配置项在各模块中：
-
-- `src/vision/ocr.py`: OCR 相关配置
-- `src/control/click.py`: 点击操作配置
-- `src/core/game_state.py`: 游戏状态配置
-- `src/core/game_controller.py`: 控制器配置
-
-## 开发说明
-
-### 视觉识别模块
-
-使用 PaddleOCR 进行卡牌识别，主要包括：
-- 公共牌识别
-- 手牌识别
-- 操作按钮识别
-
-### 决策系统
-
-基于简单的规则系统，支持：
-- 翻牌前决策
-- 翻牌后决策
-- 转牌圈决策
-- 河牌圈决策
-
-### 自动化控制
-
-使用 ADB 进行模拟器控制，支持：
-- 精确点击定位
-- 随机偏移
-- 操作延时
-
-## 日志系统
-
-- 日志文件位置：`logs/game.log`
-- 支持多级别日志：INFO、WARNING、ERROR
-- 详细记录运行状态和决策过程
-
-## 调试功能
-
-1. OCR 测试：
-```bash
-python main.py
-```
-程序会先进行 OCR 测试，识别测试图片中的牌面信息。
-
-2. 查看调试输出：
-- 识别结果预览：`data/debug/regions_preview.png`
-- OCR 结果可视化：`data/debug/ocr_result.png`
-
-## 注意事项
-
-1. 确保模拟器分辨率设置正确
-2. 保持网络连接稳定（首次运行需要下载 OCR 模型）
-3. 不要遮挡游戏界面
-4. 建议在测试环境中先进行充分测试
-
-## 已知问题
-
-1. 某些特殊牌面可能识别不准确
-2. 高对比度界面可能影响识别效果
-3. 网络延迟可能影响操作响应时间
-
-## 未来计划
-
-- [ ] 改进 OCR 识别准确率
-- [ ] 添加更复杂的决策策略
-- [ ] 支持更多游戏平台
-- [ ] 添加 GUI 界面
-- [ ] 优化性能和响应速度
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request 来帮助改进项目。
-
-## 许可证
-
-MIT License
-
-## 代码风格指南
+## 使用说明
+1. 安装依赖：`pip install -r requirements.txt`
+2. 确保ADB已连接设备
+3. 运行程序：`python main.py`
 
 ### 注释风格
 1. 步骤清晰：
@@ -170,41 +137,6 @@ MIT License
    - 直接说明功能
    - 保持一致性
 
-### 代码组织
-1. 职责分离：
-   - 每个类和方法都有明确的单一职责
-   - 避免一个方法做多件事
-   - 保持代码模块化
-
-2. 流程清晰：
-   - 主流程步骤明确
-   - 每个步骤都有对应的处理方法
-   - 步骤之间的数据传递清晰
-
-3. 错误处理：
-   - 每个步骤都有适当的错误处理
-   - 错误信息清晰明确
-   - 失败后有合理的重试机制
-
-### 日志记录
-1. 日志格式：
-   - 时间戳
-   - 日志级别
-   - 简洁的消息内容
-
-2. 日志内容：
-   - 记录关键步骤
-   - 记录状态变化
-   - 记录错误信息
-
-3. 日志级别：
-   - INFO: 正常流程信息
-   - WARNING: 需要注意但不影响运行的问题
-   - ERROR: 影响运行的问题
-
-### 注意事项
-1. 保持注释的简洁性和一致性
-2. 确保每个步骤都有明确的职责
-3. 保持代码的可读性和可维护性
-4. 遵循单一职责原则
-5. 保持错误处理的完整性
+## API文档
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc

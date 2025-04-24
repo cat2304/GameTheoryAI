@@ -87,6 +87,14 @@ class ScreenCapture:
             self.logger.error(error_msg)
             return False, error_msg
 
+    def capture(self) -> Tuple[bool, str]:
+        """获取屏幕截图
+        
+        Returns:
+            Tuple[bool, str]: (是否成功, 图片路径或错误信息)
+        """
+        return self.take_screenshot()
+
 def main():
     """主函数"""
     # 配置日志
@@ -106,8 +114,6 @@ def main():
         else:
             print(f"截图失败: {result}")
             
-    except KeyboardInterrupt:
-        print("\n程序被用户中断")
     except Exception as e:
         print(f"发生错误: {str(e)}")
     finally:

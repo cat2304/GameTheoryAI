@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import sys
 from paddleocr import PaddleOCR
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 
 # 添加项目根目录到 Python 路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -115,6 +115,90 @@ def analyze_screenshot(image_path: str) -> Dict:
     # 第二步：分析图像
     return analyze_screen(img)
 
+class ScreenCapture:
+    def __init__(self, screenshot_dir: str = "data/screenshots"):
+        self.screenshot_dir = screenshot_dir
+
+    def capture(self) -> Tuple[bool, str]:
+        """获取屏幕截图"""
+        # 执行截图命令
+
+    def capture_region(self, x: int, y: int, width: int, height: int) -> Tuple[bool, str]:
+        """获取指定区域截图"""
+        # 执行区域截图命令
+
+    def save_screenshot(self, image_path: str) -> bool:
+        """保存截图到指定路径"""
+        # 保存截图文件
+
+class OCRProcessor:
+    def __init__(self):
+        # 初始化OCR模型
+        pass
+
+    def recognize(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
+        """OCR识别"""
+        # 执行文字识别
+
+    def recognize_region(self, image_path: str, region: Tuple[int, int, int, int]) -> Tuple[bool, Dict[str, Any]]:
+        """识别指定区域"""
+        # 执行区域识别
+
+    def recognize_text(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
+        """识别文字"""
+        # 执行文字识别
+
+    def recognize_numbers(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
+        """识别数字"""
+        # 执行数字识别
+
+class ImageProcessor:
+    def __init__(self):
+        pass
+
+    def preprocess(self, image_path: str) -> Tuple[bool, str]:
+        """图像预处理"""
+        # 执行预处理
+
+    def find_template(self, image_path: str, template_path: str) -> Tuple[bool, Tuple[int, int]]:
+        """模板匹配"""
+        # 执行模板匹配
+
+    def find_color(self, image_path: str, color: Tuple[int, int, int]) -> Tuple[bool, List[Tuple[int, int]]]:
+        """颜色识别"""
+        # 执行颜色识别
+
+class Utils:
+    @staticmethod
+    def ensure_dir(directory: str) -> None:
+        """确保目录存在"""
+        # 创建目录
+
+    @staticmethod
+    def get_timestamp() -> int:
+        """获取时间戳"""
+        # 返回时间戳
+
+    @staticmethod
+    def format_path(path: str) -> str:
+        """格式化路径"""
+        # 处理路径
+
+class Config:
+    def __init__(self):
+        self.adb_path = "adb"
+        self.screenshot_dir = "data/screenshots"
+        self.ocr_model_path = "models/ocr"
+        self.template_dir = "templates"
+
+    def load_config(self, config_path: str) -> bool:
+        """加载配置"""
+        # 加载配置文件
+
+    def save_config(self, config_path: str) -> bool:
+        """保存配置"""
+        # 保存配置文件
+
 if __name__ == "__main__":
     # 测试代码
     test_image = "data/screenshots/latest.png"
@@ -122,27 +206,5 @@ if __name__ == "__main__":
         # 第一步：分析截图
         result = analyze_screenshot(test_image)
         print("分析结果：", json.dumps(result, ensure_ascii=False, indent=2))
-        
-        # 第二步：如果识别成功，执行点击
-        if result["success"]:
-            from src.utils.adb import ADBController
-            
-            # 初始化 ADB 控制器
-            adb = ADBController()
-            
-            # 获取点击坐标
-            x = result["position"]["x"]
-            y = result["position"]["y"]
-            
-            # 执行点击
-            logger.info(f"点击坐标: ({x}, {y})")
-            success = adb.execute_click(x, y)
-            
-            if success:
-                logger.info("点击成功")
-            else:
-                logger.error("点击失败")
-        else:
-            logger.error(f"识别失败: {result.get('error', '未知错误')}")
     else:
         logger.error(f"测试图片不存在: {test_image}") 

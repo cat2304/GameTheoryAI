@@ -77,6 +77,25 @@ class ADBController:
             self.logger.error(f"点击执行出错: {str(e)}")
             return False
 
+    def click(self, x: int, y: int) -> Tuple[bool, str]:
+        """点击指定坐标
+        
+        Args:
+            x: x坐标
+            y: y坐标
+            
+        Returns:
+            Tuple[bool, str]: (是否成功, 成功/错误信息)
+        """
+        if not self.device_id:
+            return False, "未找到设备"
+            
+        success = self.execute_click(x, y)
+        if success:
+            return True, "点击成功"
+        else:
+            return False, "点击失败"
+
     def take_screenshot(self, save_path: str) -> bool:
         """获取屏幕截图"""
         try:

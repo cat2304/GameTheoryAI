@@ -30,5 +30,7 @@ def setup_logging():
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
     
-    # 将PaddleOCR的日志级别设置为WARNING
-    logging.getLogger('ppocr').setLevel(logging.WARNING) 
+    # 抑制PaddleOCR的调试输出
+    logging.getLogger('ppocr').setLevel(logging.ERROR)
+    logging.getLogger('paddle').setLevel(logging.ERROR)
+    logging.getLogger('PIL').setLevel(logging.ERROR) 

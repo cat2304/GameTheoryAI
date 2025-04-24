@@ -161,9 +161,27 @@ def recognize_cards(image_path: str) -> Dict:
         return {"success": False, "error": f"无法读取图像: {image_path}"}
     return DualChannelPokerOCR(img)
 
+class OCRProcessor:
+    def __init__(self):
+        self.ocr_en = ocr_en
+        self.ocr_ch = ocr_ch
+
+    def recognize(self, image_path: str) -> Tuple[bool, Dict]:
+        """识别图像中的文本
+        
+        Args:
+            image_path: 图像文件路径
+            
+        Returns:
+            Tuple[bool, Dict]: (是否成功, 识别结果)
+        """
+        try:
+            result = recognize_cards(image_path)
+            return True, result
+        except Exception as e:
+            return False, {"error": str(e)}
+
 if __name__ == "__main__":
-    # 示例：既打印结果，又可在脚本外拿到返回值
-    img = cv2.imread("data/templates/5.png")
+    img = cv2.imread("data/templates/test.png")
     result = DualChannelPokerOCR(img)
-    # 打印 JSON
     print("识别结果：", json.dumps(result, ensure_ascii=False))
