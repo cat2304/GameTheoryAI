@@ -19,20 +19,20 @@ class GameExecutor:
     def execute_decision(self, decision: str, actions: List[Dict[str, Any]]) -> bool:
         """执行决策流程"""
         try:
-            # 第一步：记录决策信息
-            self.logger.info(f"执行决策: {decision}")
-            
-            # 第二步：查找对应按钮
+            # 第一步：查找对应按钮
             for btn in actions:
                 if btn["action"] == decision:
-                    # 第三步：计算点击坐标
+                    # 第二步：计算点击坐标
                     box = btn["box"]
                     x = sum(point[0] for point in box) // 4
                     y = sum(point[1] for point in box) // 4
                     
-                    # 第四步：执行点击
-                    self.logger.info(f"点击按钮: ({x}, {y})")
-                    return self.adb.execute_click(x, y)
+                    # 第三步：执行点击
+                    self.logger.info(f"执行决策: {decision} 执行按钮: ({x}, {y})")
+                    success = self.adb.execute_click(x, y)
+                    if success:
+                        self.logger.info(f"执行点击命令成功: input tap {x} {y}")
+                    return success
                     
             # 未找到按钮
             self.logger.warning(f"未找到按钮: {decision}")
@@ -81,7 +81,10 @@ def main():
     
     # 第四步：执行测试
     success = executor.execute_decision("让牌", test_actions)
-    print(f"点击结果: {'成功' if success else '失败'}")
+    if success:
+        print("测试完成：点击成功")
+    else:
+        print("测试完成：点击失败")
 
 if __name__ == "__main__":
     main() 

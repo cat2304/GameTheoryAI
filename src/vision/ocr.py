@@ -59,6 +59,10 @@ def preprocess_card(roi: np.ndarray) -> np.ndarray:
     return clahe.apply(fused)
 
 def extract_cards(lines: List) -> List[Tuple[str,float,List]]:
+    """提取卡牌信息"""
+    if not lines:  # 如果识别结果为空
+        return []
+        
     cards = []
     for box, (txt, conf) in lines:
         t = txt.strip().upper()

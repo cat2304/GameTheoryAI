@@ -8,6 +8,7 @@ class ADBController:
         self.logger = logging.getLogger(__name__)
         self.device_id = device_id or self._get_device_id()
         if self.device_id:
+            self.logger.info(f"找到MUMU模拟器ADB设备: {self.device_id}")
             self.logger.info(f"ADB控制器初始化完成，设备ID: {self.device_id}")
         else:
             self.logger.error("ADB控制器初始化失败，未找到设备")
@@ -29,7 +30,6 @@ class ADBController:
             for device in devices:
                 if device.strip() and 'device' in device:
                     device_id = device.split('\t')[0]
-                    self.logger.info(f"找到设备: {device_id}")
                     return device_id
             
             self.logger.error("未找到已连接的设备")
@@ -59,7 +59,6 @@ class ADBController:
         """执行点击操作"""
         try:
             command = f'input tap {x} {y}'
-            self.logger.info(f"执行点击命令: {command}")
             
             result = subprocess.run(
                 ['adb', '-s', self.device_id, 'shell', command],
@@ -68,7 +67,6 @@ class ADBController:
                 text=True
             )
             
-            self.logger.info("点击执行成功")
             time.sleep(0.5)  # 点击后等待
             return True
             
