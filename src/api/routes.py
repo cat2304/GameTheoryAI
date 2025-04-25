@@ -1,12 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import time
 
 from src.core.adb import ADBController
 from src.core.screen import ScreenCapture
 from src.core.ocr import OCRProcessor
 from src.core.ocrall import OCRProcessor as FullOCRProcessor
+from src.core.ocr_region import OCRRegionProcessor
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -20,6 +21,7 @@ adb_controller = ADBController()
 screen_capture = ScreenCapture()
 ocr_processor = OCRProcessor()
 full_ocr_processor = FullOCRProcessor()
+region_ocr_processor = OCRRegionProcessor()
 
 # 请求模型
 class ClickRequest(BaseModel):
@@ -29,6 +31,10 @@ class ClickRequest(BaseModel):
 
 class OCRRequest(BaseModel):
     image_path: str
+
+class OCRRegionRequest(BaseModel):
+    image_path: str
+    region: Tuple[int, int, int, int]  # (x, y, width, height)
 
 class DeviceRequest(BaseModel):
     device_id: str
@@ -184,6 +190,20 @@ async def ocr_recognize_all(request: OCRRequest):
     识别图片中的所有文字，并返回每个文字的位置、置信度等信息。
     """
     success, result = full_ocr_processor.recognize_all_text(request.image_path)
+    
+    return ApiResponse(
+        success=success,
+        message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+        data=result if success else None
+    )
+
+@app.post("/api/ocr/recognize_region", response_model=ApiResponse)
+async def ocr_recognize_region(request: OCRRegionRequest):
+    """区域文字识别接口
+    
+    识别图片中指定区域的文字，并返回每个文字的位置、置信度等信息。
+    """
+    success, result = region_ocr_processor.recognize_region(request.image_path, request.region)
     
     return ApiResponse(
         success=success,
