@@ -11,8 +11,8 @@ os.makedirs(DEBUG_DIR, exist_ok=True)
 
 # 区域设置（使用相对比例，最小调整）
 REGION_RATIOS = {
-    "PUBLIC_REGION": (0.3, 0.515, 0.7, 0.574),  # 扩大公牌区域范围
-    "HAND_REGION":   (0.43, 0.901, 0.59, 0.97),
+    "PUBLIC_REGION": (0.28, 0.5, 0.69, 0.59),  # 扩大公牌区域范围
+    "HAND_REGION":   (0.42, 0.89, 0.61, 0.97),
 }
 
 def get_region_coordinates(image_shape: Tuple[int, int], region_ratio: Tuple[float, float, float, float]) -> Tuple[int, int, int, int]:

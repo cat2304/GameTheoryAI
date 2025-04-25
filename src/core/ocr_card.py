@@ -158,8 +158,19 @@ def recognize_cards(image_path: str) -> Dict:
     """识别卡牌"""
     img = cv2.imread(image_path)
     if img is None:
-        return {"success": False, "error": f"无法读取图像: {image_path}"}
-    return DualChannelPokerOCR(img)
+        return {
+            "success": False,
+            "hand_cards": [],
+            "public_cards": [],
+            "error": f"无法读取图像: {image_path}"
+        }
+    result = DualChannelPokerOCR(img)
+    return {
+        "success": result["success"],
+        "hand_cards": result["handCards"],
+        "public_cards": result["publicCards"],
+        "error": result.get("error")
+    }
 
 class OCRProcessor:
     def __init__(self):

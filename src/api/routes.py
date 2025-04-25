@@ -5,10 +5,8 @@ import time
 
 from src.core.adb import ADBController
 from src.core.screen import ScreenCapture
-from src.core.ocr import OCRProcessor
-from src.core.ocrall import OCRProcessor as FullOCRProcessor
+from src.core.ocr_all import OCRProcessor
 from src.core.ocr_region import OCRRegionProcessor
-from src.core.ocr_all import recognize_text
 from src.core.ocr_card import recognize_cards
 
 # 初始化FastAPI应用
@@ -22,7 +20,6 @@ app = FastAPI(
 adb_controller = ADBController()
 screen_capture = ScreenCapture()
 ocr_processor = OCRProcessor()
-full_ocr_processor = FullOCRProcessor()
 region_ocr_processor = OCRRegionProcessor()
 
 # 请求模型
@@ -71,7 +68,10 @@ class OCRCardResponse(BaseModel):
     public_cards: List[str]
     error: Optional[str] = None
 
-@app.post("/api/device/list", response_model=ApiResponse)
+# 初始化路由
+router = APIRouter()
+
+@router.post("/api/device/list", response_model=ApiResponse)
 async def list_devices(request: EmptyRequest):
     """获取所有已连接的设备列表"""
     try:
@@ -87,7 +87,7 @@ async def list_devices(request: EmptyRequest):
             message=f"获取设备列表失败: {str(e)}"
         )
 
-@app.post("/api/device/current", response_model=ApiResponse)
+@router.post("/api/device/current", response_model=ApiResponse)
 async def get_current_device(request: DeviceRequest):
     """获取当前连接的设备信息"""
     try:
@@ -116,7 +116,7 @@ async def get_current_device(request: DeviceRequest):
             message=f"获取设备信息失败: {str(e)}"
         )
 
-@app.post("/api/device/connect", response_model=ApiResponse)
+@router.post("/api/device/connect", response_model=ApiResponse)
 async def connect_device(request: DeviceRequest):
     """连接指定设备"""
     try:
@@ -138,7 +138,7 @@ async def connect_device(request: DeviceRequest):
             message=f"设备连接失败: {str(e)}"
         )
 
-@app.post("/api/device/disconnect", response_model=ApiResponse)
+@router.post("/api/device/disconnect", response_model=ApiResponse)
 async def disconnect_device(request: DeviceRequest):
     """断开当前设备连接"""
     try:
@@ -159,111 +159,106 @@ async def disconnect_device(request: DeviceRequest):
             message=f"设备断开连接失败: {str(e)}"
         )
 
-@app.post("/api/mumu/click", response_model=ApiResponse)
+@router.post("/api/device/click", response_model=ApiResponse)
 async def adb_click(request: ClickRequest):
     """ADB点击接口"""
-    success, message = adb_controller.click(request.device_id, request.x, request.y)
-    
-    return ApiResponse(
-        success=success,
-        message=message,
-        data={
-            "device_id": request.device_id,
-            "x": request.x,
-            "y": request.y,
-            "timestamp": time.time()
-        } if success else None
-    )
+    try:
+        success, message = adb_controller.click(request.device_id, request.x, request.y)
+        return ApiResponse(
+            success=success,
+            message=message,
+            data={
+                "device_id": request.device_id,
+                "x": request.x,
+                "y": request.y,
+                "timestamp": time.time()
+            } if success else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"点击失败: {str(e)}"
+        )
 
-@app.post("/api/mumu/screenshot", response_model=ApiResponse)
+@router.post("/api/device/screenshot", response_model=ApiResponse)
 async def mumu_screenshot(request: DeviceRequest):
     """截屏接口"""
-    success, result = screen_capture.capture(request.device_id)
-    
-    return ApiResponse(
-        success=success,
-        message="截图成功" if success else f"截图失败: {result}",
-        data={
-            "device_id": request.device_id,
-            "path": result,
-            "timestamp": time.time()
-        } if success else None
-    )
+    try:
+        success, result = screen_capture.capture(request.device_id)
+        return ApiResponse(
+            success=success,
+            message="截图成功" if success else f"截图失败: {result}",
+            data={
+                "device_id": request.device_id,
+                "path": result,
+                "timestamp": time.time()
+            } if success else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"截图失败: {str(e)}"
+        )
 
-@app.post("/api/ocr/recognize", response_model=ApiResponse)
-async def ocr_recognize(request: OCRRequest):
-    """OCR识别接口"""
-    success, result = ocr_processor.recognize(request.image_path)
-    
-    return ApiResponse(
-        success=success,
-        message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data=result if success else None
-    )
-
-@app.post("/api/ocr/recognize_all", response_model=ApiResponse)
+@router.post("/api/ocr/recognize_all", response_model=ApiResponse)
 async def ocr_recognize_all(request: OCRRequest):
     """全图文字识别接口
     
     识别图片中的所有文字，并返回每个文字的位置、置信度等信息。
     """
-    success, result = full_ocr_processor.recognize_all_text(request.image_path)
-    
-    return ApiResponse(
-        success=success,
-        message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data=result if success else None
-    )
+    try:
+        success, result = ocr_processor.recognize_all_text(request.image_path)
+        return ApiResponse(
+            success=success,
+            message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+            data=result if success else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
 
-@app.post("/api/ocr/recognize_region", response_model=ApiResponse)
+@router.post("/api/ocr/recognize_region", response_model=ApiResponse)
 async def ocr_recognize_region(request: OCRRegionRequest):
     """区域文字识别接口
     
     识别图片中指定区域的文字，并返回每个文字的位置、置信度等信息。
     """
-    success, result = region_ocr_processor.recognize_region(request.image_path, request.region)
-    
-    return ApiResponse(
-        success=success,
-        message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
-        data=result if success else None
-    )
-
-router = APIRouter()
-
-@router.post("/ocr", response_model=OCRResponse)
-async def ocr_endpoint(request: OCRRequest):
     try:
-        texts = recognize_text(request.image_path)
-        return OCRResponse(success=True, texts=texts)
-    except Exception as e:
-        return OCRResponse(success=False, texts=[], error=str(e))
-
-@router.post("/ocr/region", response_model=OCRRegionResponse)
-async def ocr_region_endpoint(request: OCRRegionRequest):
-    try:
-        processor = OCRRegionProcessor()
-        success, result = processor.recognize_region(request.image_path, request.region)
-        if success:
-            return OCRRegionResponse(success=True, texts=result["texts"])
-        else:
-            return OCRRegionResponse(success=False, texts=[], error=result.get("error", "未知错误"))
-    except Exception as e:
-        return OCRRegionResponse(success=False, texts=[], error=str(e))
-
-@router.post("/ocr/cards", response_model=OCRCardResponse)
-async def ocr_cards_endpoint(request: OCRRequest):
-    try:
-        result = recognize_cards(request.image_path)
-        return OCRCardResponse(
-            success=True,
-            hand_cards=result["hand_cards"],
-            public_cards=result["public_cards"]
+        success, result = region_ocr_processor.recognize_region(request.image_path, request.region)
+        return ApiResponse(
+            success=success,
+            message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+            data=result if success else None
         )
     except Exception as e:
-        return OCRCardResponse(
+        return ApiResponse(
             success=False,
-            hand_cards=[],
-            public_cards=[],
-            error=str(e)
-        ) 
+            message=f"识别失败: {str(e)}"
+        )
+
+@router.post("/api/ocr/recognize_cards", response_model=ApiResponse)
+async def ocr_cards_endpoint(request: OCRRequest):
+    """卡牌识别接口
+    
+    识别图片中的扑克牌，返回手牌和公共牌。
+    """
+    try:
+        result = recognize_cards(request.image_path)
+        return ApiResponse(
+            success=result["success"],
+            message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
+            data={
+                "hand_cards": result["hand_cards"],
+                "public_cards": result["public_cards"]
+            } if result["success"] else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
+
+# 将router集成到主应用
+app.include_router(router) 
