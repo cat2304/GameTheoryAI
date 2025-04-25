@@ -18,8 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 # ============ 区域配置 ============
 REGION_RATIOS = {
-    "PUBLIC_REGION": (0.15, 0.5, 0.85, 0.6),  # 扩大公牌区域范围
-    "HAND_REGION":   (0.3, 0.88, 0.7, 0.98),
+    "PUBLIC_REGION": (0.3, 0.515, 0.7, 0.574),  # 扩大公牌区域范围
+    "HAND_REGION":   (0.44, 0.901, 0.59, 0.99),
     "CLICK_REGION":  (0.3, 0.65, 0.7, 0.85)
 }
 
