@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List, Tuple
 import time
@@ -8,6 +8,8 @@ from src.core.screen import ScreenCapture
 from src.core.ocr import OCRProcessor
 from src.core.ocrall import OCRProcessor as FullOCRProcessor
 from src.core.ocr_region import OCRRegionProcessor
+from src.core.ocr_all import recognize_text
+from src.core.ocr_card import recognize_cards
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -52,6 +54,22 @@ class DeviceInfo(BaseModel):
     device_id: str
     status: str
     screen_size: Optional[Dict[str, int]] = None
+
+class OCRResponse(BaseModel):
+    success: bool
+    texts: List[str]
+    error: Optional[str] = None
+
+class OCRRegionResponse(BaseModel):
+    success: bool
+    texts: List[dict]
+    error: Optional[str] = None
+
+class OCRCardResponse(BaseModel):
+    success: bool
+    hand_cards: List[str]
+    public_cards: List[str]
+    error: Optional[str] = None
 
 @app.post("/api/device/list", response_model=ApiResponse)
 async def list_devices(request: EmptyRequest):
@@ -209,4 +227,43 @@ async def ocr_recognize_region(request: OCRRegionRequest):
         success=success,
         message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
         data=result if success else None
-    ) 
+    )
+
+router = APIRouter()
+
+@router.post("/ocr", response_model=OCRResponse)
+async def ocr_endpoint(request: OCRRequest):
+    try:
+        texts = recognize_text(request.image_path)
+        return OCRResponse(success=True, texts=texts)
+    except Exception as e:
+        return OCRResponse(success=False, texts=[], error=str(e))
+
+@router.post("/ocr/region", response_model=OCRRegionResponse)
+async def ocr_region_endpoint(request: OCRRegionRequest):
+    try:
+        processor = OCRRegionProcessor()
+        success, result = processor.recognize_region(request.image_path, request.region)
+        if success:
+            return OCRRegionResponse(success=True, texts=result["texts"])
+        else:
+            return OCRRegionResponse(success=False, texts=[], error=result.get("error", "未知错误"))
+    except Exception as e:
+        return OCRRegionResponse(success=False, texts=[], error=str(e))
+
+@router.post("/ocr/cards", response_model=OCRCardResponse)
+async def ocr_cards_endpoint(request: OCRRequest):
+    try:
+        result = recognize_cards(request.image_path)
+        return OCRCardResponse(
+            success=True,
+            hand_cards=result["hand_cards"],
+            public_cards=result["public_cards"]
+        )
+    except Exception as e:
+        return OCRCardResponse(
+            success=False,
+            hand_cards=[],
+            public_cards=[],
+            error=str(e)
+        ) 
