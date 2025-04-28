@@ -46,25 +46,7 @@ class RegionProcessor:
             return False, {"error": str(e)}
 
     def copy_region(self, image_path: str, region: Tuple[int, int, int, int], type: RegionType = RegionType.PUBLIC) -> Tuple[bool, Dict[str, Any]]:
-        """复制指定区域的图片
-        
-        Args:
-            image_path: 源图片路径
-            region: 裁剪区域 (x, y, width, height)
-            type: 区域类型
-            
-        Returns:
-            Tuple[bool, Dict[str, Any]]: (成功标志, 结果字典)
-            成功时返回:
-            {
-                "success": True,
-                "path": 裁剪后图片的相对路径
-            }
-            失败时返回:
-            {
-                "error": 错误信息
-            }
-        """
+        """复制指定区域的图片"""
         try:
             # 检查输入参数
             if not os.path.exists(image_path):
@@ -73,18 +55,23 @@ class RegionProcessor:
             if len(region) != 4:
                 return False, {"error": "区域参数格式错误，应为 (x, y, width, height)"}
             
-            # 读取图片
-            img = cv2.imread(image_path)
-            if img is None:
-                return False, {"error": f"无法读取图片: {image_path}"}
+            # 获取图片尺寸
+            success, size_info = self.get_image_size(image_path)
+            if not success:
+                return False, size_info
             
             # 检查区域是否有效
             x, y, w, h = region
             if x < 0 or y < 0 or w <= 0 or h <= 0:
                 return False, {"error": "无效的区域参数"}
             
-            if x + w > img.shape[1] or y + h > img.shape[0]:
+            if x + w > size_info["width"] or y + h > size_info["height"]:
                 return False, {"error": "区域超出图片范围"}
+            
+            # 读取图片
+            img = cv2.imread(image_path)
+            if img is None:
+                return False, {"error": f"无法读取图片: {image_path}"}
             
             # 裁剪指定区域
             roi = img[y:y+h, x:x+w]
@@ -93,9 +80,8 @@ class RegionProcessor:
             save_dir = os.path.join("data/screenshots", type.name.lower())
             os.makedirs(save_dir, exist_ok=True)
             
-            # 生成带时间戳的文件名
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{type.name.lower()}_{timestamp}.png"
+            # 生成文件名
+            filename = f"{type.value}.png"
             save_path = os.path.join(save_dir, filename)
             
             # 保存图片
