@@ -286,6 +286,7 @@ async def ai_cards_endpoint(request: OCRRequest):
             - success: 是否识别成功
             - message: 成功或失败的消息
             - data: 识别结果数据
+                - predictions: 完整的预测结果
                 - hand_cards: 手牌列表
                 - public_cards: 公共牌列表
     """
@@ -295,10 +296,7 @@ async def ai_cards_endpoint(request: OCRRequest):
         return ApiResponse(
             success=result["success"],
             message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
-            data={
-                "hand_cards": result["hand_cards"],
-                "public_cards": result["public_cards"]
-            } if result["success"] else None
+            data=result if result["success"] else None
         )
     except Exception as e:
         return ApiResponse(

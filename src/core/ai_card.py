@@ -90,7 +90,7 @@ def recognize_cards(image_path: str) -> dict:
         image_path: 图片路径
         
     Returns:
-        dict: 识别结果，包含success、hand_cards、public_cards和error字段
+        dict: 识别结果，包含success、predictions、hand_cards、public_cards和error字段
     """
     try:
         model_path = "data/best.pt"  # 模型路径
@@ -111,12 +111,14 @@ def recognize_cards(image_path: str) -> dict:
         
         return {
             "success": True,
+            "predictions": result["predictions"],  # 添加完整的预测结果
             "hand_cards": hand_cards,
             "public_cards": public_cards
         }
     except Exception as e:
         return {
             "success": False,
+            "predictions": [],
             "hand_cards": [],
             "public_cards": [],
             "error": str(e)
