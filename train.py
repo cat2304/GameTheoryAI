@@ -16,7 +16,7 @@ dataset_zip = "/Users/mac/ai/Project.v9i.yolov8.zip"
 dataset_dir = "/Users/mac/ai/datasets"
 
 # 训练输出目录
-project_dir = "./yolo_training"
+project_dir = "./data"
 
 # 本次训练模型名称（带时间戳）
 model_name = f"mac_m2_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
