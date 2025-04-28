@@ -1,0 +1,13 @@
+train: /Users/mac/ai/datasets/train/images
+val: /Users/mac/ai/datasets/valid/images
+test: /Users/mac/ai/datasets/test/images
+
+nc: 52
+names: ['10f', '10h', '10m', '10s', '2f', '2h', '2m', '2s', '3f', '3h', '3m', '3s', '4f', '4h', '4m', '4s', '5f', '5h', '5m', '5s', '6f', '6h', '6m', '6s', '7f', '7h', '7m', '7s', '8f', '8h', '8m', '8s', '9f', '9h', '9m', '9s', 'Af', 'Ah', 'Am', 'As', 'Jf', 'Jh', 'Jm', 'Js', 'Kf', 'Kh', 'Km', 'Ks', 'Qf', 'Qh', 'Qm', 'Qs']
+
+roboflow:
+  workspace: ai-qrccw
+  project: my-first-project-i9qhe
+  version: 9
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/ai-qrccw/my-first-project-i9qhe/dataset/9

@@ -69,9 +69,9 @@ class OCRCardResponse(BaseModel):
     error: Optional[str] = None
 
 # 初始化路由
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
-@router.post("/api/device/list", response_model=ApiResponse)
+@router.post("/device/list", response_model=ApiResponse)
 async def list_devices(request: EmptyRequest):
     """获取所有已连接的设备列表"""
     try:
@@ -87,7 +87,7 @@ async def list_devices(request: EmptyRequest):
             message=f"获取设备列表失败: {str(e)}"
         )
 
-@router.post("/api/device/current", response_model=ApiResponse)
+@router.post("/device/current", response_model=ApiResponse)
 async def get_current_device(request: DeviceRequest):
     """获取当前连接的设备信息"""
     try:
@@ -116,7 +116,7 @@ async def get_current_device(request: DeviceRequest):
             message=f"获取设备信息失败: {str(e)}"
         )
 
-@router.post("/api/device/connect", response_model=ApiResponse)
+@router.post("/device/connect", response_model=ApiResponse)
 async def connect_device(request: DeviceRequest):
     """连接指定设备"""
     try:
@@ -138,7 +138,7 @@ async def connect_device(request: DeviceRequest):
             message=f"设备连接失败: {str(e)}"
         )
 
-@router.post("/api/device/disconnect", response_model=ApiResponse)
+@router.post("/device/disconnect", response_model=ApiResponse)
 async def disconnect_device(request: DeviceRequest):
     """断开当前设备连接"""
     try:
@@ -159,7 +159,7 @@ async def disconnect_device(request: DeviceRequest):
             message=f"设备断开连接失败: {str(e)}"
         )
 
-@router.post("/api/device/click", response_model=ApiResponse)
+@router.post("/device/click", response_model=ApiResponse)
 async def adb_click(request: ClickRequest):
     """ADB点击接口"""
     try:
@@ -180,7 +180,7 @@ async def adb_click(request: ClickRequest):
             message=f"点击失败: {str(e)}"
         )
 
-@router.post("/api/device/screenshot", response_model=ApiResponse)
+@router.post("/device/screenshot", response_model=ApiResponse)
 async def mumu_screenshot(request: DeviceRequest):
     """截屏接口"""
     try:
@@ -200,7 +200,7 @@ async def mumu_screenshot(request: DeviceRequest):
             message=f"截图失败: {str(e)}"
         )
 
-@router.post("/api/ocr/recognize_all", response_model=ApiResponse)
+@router.post("/ocr/recognize_all", response_model=ApiResponse)
 async def ocr_recognize_all(request: OCRRequest):
     """全图文字识别接口
     
@@ -219,7 +219,7 @@ async def ocr_recognize_all(request: OCRRequest):
             message=f"识别失败: {str(e)}"
         )
 
-@router.post("/api/ocr/recognize_region", response_model=ApiResponse)
+@router.post("/ocr/recognize_region", response_model=ApiResponse)
 async def ocr_recognize_region(request: OCRRegionRequest):
     """区域文字识别接口
     
@@ -238,13 +238,59 @@ async def ocr_recognize_region(request: OCRRegionRequest):
             message=f"识别失败: {str(e)}"
         )
 
-@router.post("/api/ocr/recognize_cards", response_model=ApiResponse)
+@router.post("/ocr/recognize_cards", response_model=ApiResponse)
 async def ocr_cards_endpoint(request: OCRRequest):
-    """卡牌识别接口
+    """OCR卡牌识别接口
     
-    识别图片中的扑克牌，返回手牌和公共牌。
+    使用PaddleOCR识别图片中的扑克牌，返回手牌和公共牌。
+    
+    Args:
+        request (OCRRequest): 包含图片路径的请求对象
+        
+    Returns:
+        ApiResponse: 包含识别结果的响应对象
+            - success: 是否识别成功
+            - message: 成功或失败的消息
+            - data: 识别结果数据
+                - hand_cards: 手牌列表
+                - public_cards: 公共牌列表
     """
     try:
+        result = recognize_cards(request.image_path)
+        return ApiResponse(
+            success=result["success"],
+            message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
+            data={
+                "hand_cards": result["hand_cards"],
+                "public_cards": result["public_cards"]
+            } if result["success"] else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
+
+@router.post("/ai/recognize_cards", response_model=ApiResponse)
+async def ai_cards_endpoint(request: OCRRequest):
+    """AI卡牌识别接口
+    
+    使用YOLO模型识别图片中的扑克牌，返回手牌和公共牌。
+    相比OCR识别，AI识别可能在某些情况下提供更准确的识别结果。
+    
+    Args:
+        request (OCRRequest): 包含图片路径的请求对象
+        
+    Returns:
+        ApiResponse: 包含识别结果的响应对象
+            - success: 是否识别成功
+            - message: 成功或失败的消息
+            - data: 识别结果数据
+                - hand_cards: 手牌列表
+                - public_cards: 公共牌列表
+    """
+    try:
+        from src.core.ai_card import recognize_cards
         result = recognize_cards(request.image_path)
         return ApiResponse(
             success=result["success"],

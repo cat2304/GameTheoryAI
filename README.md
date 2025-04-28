@@ -194,67 +194,107 @@ python main.py
 
 ## API 接口
 
-### 设备管理
+### 1. 设备管理
 
 #### 获取设备列表
 ```bash
-GET /api/device/list
+curl -X POST http://localhost:8000/api/device/list \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
-返回所有已连接的设备列表。
 
 #### 获取当前设备信息
 ```bash
-GET /api/device/current
+curl -X POST http://localhost:8000/api/device/current \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "device_id"}'
 ```
-返回当前连接的设备信息，包括设备ID和屏幕尺寸。
 
 #### 连接设备
 ```bash
-POST /api/device/connect
-Content-Type: application/json
-
-{
-    "device_id": "设备ID"
-}
+curl -X POST http://localhost:8000/api/device/connect \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "device_id"}'
 ```
-连接指定的设备。
 
 #### 断开设备连接
 ```bash
-POST /api/device/disconnect
+curl -X POST http://localhost:8000/api/device/disconnect \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "device_id"}'
 ```
-断开当前设备的连接。
 
-### 游戏操作
+### 2. 设备操作
 
 #### 点击操作
 ```bash
-POST /api/mumu/click
-Content-Type: application/json
+curl -X POST http://localhost:8000/api/device/click \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "device_id", "x": 100, "y": 200}'
+```
 
+#### 截屏操作
+```bash
+curl -X POST http://localhost:8000/api/device/screenshot \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "device_id"}'
+```
+
+### 3. OCR 识别
+
+#### 全图识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize_all \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "path/to/image.png"}'
+```
+
+#### 区域识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize_region \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "path/to/image.png", "region": [x, y, width, height]}'
+```
+
+#### OCR 卡牌识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize_cards \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "path/to/image.png"}'
+```
+
+响应示例：
+```json
 {
-    "x": 100,
-    "y": 100
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "hand_cards": ["Ah", "Kd"],
+        "public_cards": ["2c", "3h", "4s", "5d", "6h"]
+    }
 }
 ```
-在指定坐标执行点击操作。
 
-#### 截图
+#### AI 卡牌识别
 ```bash
-POST /api/mumu/screenshot
+curl -X POST http://localhost:8000/api/ai/recognize_cards \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "path/to/image.png"}'
 ```
-获取当前屏幕截图。
 
-#### OCR识别
-```bash
-POST /api/ocr/recognize
-Content-Type: application/json
-
+响应示例：
+```json
 {
-    "image_path": "data/screenshots/latest.png"
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "hand_cards": ["Ah", "Kd"],
+        "public_cards": ["2c", "3h", "4s", "5d", "6h"]
+    }
 }
 ```
-对指定图片进行OCR识别。
+
+注意：AI 卡牌识别使用 YOLO 模型进行识别，相比 OCR 识别可能在某些情况下提供更准确的识别结果。
 
 ## 目录结构
 

@@ -18,21 +18,9 @@ def get_screenshot_dir():
     os.makedirs(screenshot_dir, exist_ok=True)
     return screenshot_dir
 
-def get_next_screenshot_number(screenshot_dir):
-    """获取下一个可用的截图编号"""
-    existing_files = [f for f in os.listdir(screenshot_dir) if f.endswith('.png')]
-    if not existing_files:
-        return 1
-    
-    numbers = []
-    for file in existing_files:
-        try:
-            num = int(file.split('.')[0])
-            numbers.append(num)
-        except ValueError:
-            continue
-    
-    return max(numbers) + 1 if numbers else 1
+def get_timestamp_filename():
+    """获取时间戳文件名"""
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:17] + ".png"
 
 def take_screenshot():
     """获取屏幕截图"""
@@ -59,8 +47,8 @@ def take_screenshot():
         
         # 获取保存路径
         screenshot_dir = get_screenshot_dir()
-        next_num = get_next_screenshot_number(screenshot_dir)
-        screenshot_path = os.path.join(screenshot_dir, f"{next_num}.png")
+        filename = get_timestamp_filename()
+        screenshot_path = os.path.join(screenshot_dir, filename)
         
         # 保存截图
         with open(screenshot_path, 'wb') as f:
