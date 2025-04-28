@@ -37,9 +37,9 @@ logs/
 
 # Data and debug files
 data/debug/
-*.jpg
-*.png
-*.jpeg
+# *.jpg
+# *.png
+# *.jpeg
 
 # Local development
 .env
