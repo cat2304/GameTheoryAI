@@ -4,10 +4,14 @@ from typing import Dict, Any, Optional, List, Tuple
 import time
 
 from src.core.adb import ADBController
-from src.core.screen import ScreenCapture
+from src.core.screen_all import ScreenCapture
 from src.core.ocr_all import OCRProcessor
 from src.core.ocr_region import OCRRegionProcessor
 from src.core.ocr_card import recognize_cards
+from src.core.copy_region import RegionProcessor
+from src.core.screen_region import ScreenRegionProcessor
+from src.core.enums import RegionType
+from src.core.ai_card import YOLOCard
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -21,6 +25,7 @@ adb_controller = ADBController()
 screen_capture = ScreenCapture()
 ocr_processor = OCRProcessor()
 region_ocr_processor = OCRRegionProcessor()
+screen_region_processor = ScreenRegionProcessor()
 
 # 请求模型
 class ClickRequest(BaseModel):
@@ -34,12 +39,23 @@ class OCRRequest(BaseModel):
 class OCRRegionRequest(BaseModel):
     image_path: str
     region: Tuple[int, int, int, int]  # (x, y, width, height)
+    type: int = 1  # 区域类型：1=公牌, 2=手牌, 3=操作
 
 class DeviceRequest(BaseModel):
     device_id: str
 
 class EmptyRequest(BaseModel):
     pass
+
+class RegionCopyRequest(BaseModel):
+    image_path: str
+    region: Tuple[int, int, int, int]  # (x, y, width, height)
+    type: int = 1  # 区域类型：1=公牌, 2=手牌, 3=操作
+
+class ScreenRegionRequest(BaseModel):
+    device_id: str
+    type: int = 1  # 区域类型：1=公牌, 2=手牌, 3=操作
+    region: Tuple[int, int, int, int]  # (x, y, width, height)
 
 # 响应模型
 class ApiResponse(BaseModel):
@@ -73,7 +89,9 @@ router = APIRouter(prefix="/api")
 
 @router.post("/device/list", response_model=ApiResponse)
 async def list_devices(request: EmptyRequest):
-    """获取所有已连接的设备列表"""
+    """获取设备列表
+    请求: {}
+    响应: {"success": true, "data": {"devices": ["127.0.0.1:16384"]}}"""
     try:
         devices = adb_controller.list_devices()
         return ApiResponse(
@@ -89,7 +107,9 @@ async def list_devices(request: EmptyRequest):
 
 @router.post("/device/current", response_model=ApiResponse)
 async def get_current_device(request: DeviceRequest):
-    """获取当前连接的设备信息"""
+    """获取当前设备信息
+    请求: {"device_id": "127.0.0.1:16384"}
+    响应: {"success": true, "data": {"device_id": "127.0.0.1:16384", "status": "connected", "screen_size": {"width": 1920, "height": 1080}}}"""
     try:
         screen_size = adb_controller.get_screen_size(request.device_id)
         if not screen_size:
@@ -118,7 +138,9 @@ async def get_current_device(request: DeviceRequest):
 
 @router.post("/device/connect", response_model=ApiResponse)
 async def connect_device(request: DeviceRequest):
-    """连接指定设备"""
+    """连接设备
+    请求: {"device_id": "127.0.0.1:16384"}
+    响应: {"success": true, "data": {"device_id": "127.0.0.1:16384"}}"""
     try:
         success = adb_controller.connect_device(request.device_id)
         if success:
@@ -140,7 +162,9 @@ async def connect_device(request: DeviceRequest):
 
 @router.post("/device/disconnect", response_model=ApiResponse)
 async def disconnect_device(request: DeviceRequest):
-    """断开当前设备连接"""
+    """断开设备连接
+    请求: {"device_id": "127.0.0.1:16384"}
+    响应: {"success": true, "message": "设备断开连接成功"}"""
     try:
         success = adb_controller.disconnect_device()
         if success:
@@ -161,7 +185,9 @@ async def disconnect_device(request: DeviceRequest):
 
 @router.post("/device/click", response_model=ApiResponse)
 async def adb_click(request: ClickRequest):
-    """ADB点击接口"""
+    """点击操作
+    请求: {"device_id": "127.0.0.1:16384", "x": 100, "y": 200}
+    响应: {"success": true, "data": {"device_id": "127.0.0.1:16384", "x": 100, "y": 200, "timestamp": 1234567890.123}}"""
     try:
         success, message = adb_controller.click(request.device_id, request.x, request.y)
         return ApiResponse(
@@ -182,7 +208,9 @@ async def adb_click(request: ClickRequest):
 
 @router.post("/device/screenshot", response_model=ApiResponse)
 async def mumu_screenshot(request: DeviceRequest):
-    """截屏接口"""
+    """截屏操作
+    请求: {"device_id": "127.0.0.1:16384"}
+    响应: {"success": true, "data": {"device_id": "127.0.0.1:16384", "path": "data/screenshots/screenshot_1234567890.png", "timestamp": 1234567890}}"""
     try:
         success, result = screen_capture.capture(request.device_id)
         return ApiResponse(
@@ -202,10 +230,9 @@ async def mumu_screenshot(request: DeviceRequest):
 
 @router.post("/ocr/recognize_all", response_model=ApiResponse)
 async def ocr_recognize_all(request: OCRRequest):
-    """全图文字识别接口
-    
-    识别图片中的所有文字，并返回每个文字的位置、置信度等信息。
-    """
+    """全图文字识别
+    请求: {"image_path": "data/screenshots/screenshot_1234567890.png"}
+    响应: {"success": true, "data": {"texts": [{"text": "识别结果", "confidence": 0.95, "position": {"x": 100, "y": 200, "width": 50, "height": 30}}]}}"""
     try:
         success, result = ocr_processor.recognize_all_text(request.image_path)
         return ApiResponse(
@@ -219,14 +246,84 @@ async def ocr_recognize_all(request: OCRRequest):
             message=f"识别失败: {str(e)}"
         )
 
-@router.post("/ocr/recognize_region", response_model=ApiResponse)
-async def ocr_recognize_region(request: OCRRegionRequest):
-    """区域文字识别接口
+@router.post("/ai/recognize_cards", response_model=ApiResponse)
+async def ai_cards_endpoint(request: OCRRequest):
+    """AI卡牌识别
     
-    识别图片中指定区域的文字，并返回每个文字的位置、置信度等信息。
+    请求示例:
+    ```json
+    {
+        "image_path": "data/screenshots/screenshot_1234567890.png"
+    }
+    ```
+    
+    响应示例:
+    ```json
+    {
+        "success": true,
+        "message": "识别成功",
+        "data": {
+            "predictions": [
+                {
+                    "x": 345,
+                    "y": 824.5,
+                    "width": 32,
+                    "height": 41,
+                    "confidence": 0.759,
+                    "class": "2f",
+                    "class_id": 4,
+                    "detection_id": "cf360137-7578-48e7-9d95-14c488c04e78"
+                }
+            ],
+            "hand_cards": ["10s", "7s", "6h", "Am"],
+            "public_cards": []
+        }
+    }
+    ```
     """
     try:
-        success, result = region_ocr_processor.recognize_region(request.image_path, request.region)
+        model_path = "data/best.pt"
+        tester = YOLOCard(model_path)
+        result = tester.predict_single_image(request.image_path)
+        
+        # 处理预测结果，将牌分类为手牌和公共牌
+        hand_cards = []
+        public_cards = []
+        
+        for pred in result["predictions"]:
+            card = pred["class"]
+            # 根据y坐标判断是手牌还是公共牌
+            if pred["y"] > 0.7:  # 假设y坐标大于0.7的是手牌
+                hand_cards.append(card)
+            else:
+                public_cards.append(card)
+        
+        return ApiResponse(
+            success=True,
+            message="识别成功",
+            data={
+                "predictions": result["predictions"],
+                "hand_cards": hand_cards,
+                "public_cards": public_cards
+            }
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
+
+@router.post("/ocr/recognize_region", response_model=ApiResponse)
+async def ocr_recognize_region(request: OCRRegionRequest):
+    """识别指定区域的文字
+    请求: {"image_path": "data/screenshots/screenshot_1234567890.png", "region": [100, 200, 300, 400], "type": 1}
+    响应: {"success": true, "data": {"texts": [{"text": "识别结果", "confidence": 0.95, "position": {"x": 100, "y": 200, "width": 50, "height": 30}}], "type": 1}}"""
+    try:
+        success, result = region_ocr_processor.recognize_region(
+            request.image_path,
+            request.region,
+            request.type
+        )
         return ApiResponse(
             success=success,
             message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
@@ -238,70 +335,48 @@ async def ocr_recognize_region(request: OCRRegionRequest):
             message=f"识别失败: {str(e)}"
         )
 
-@router.post("/ocr/recognize_cards", response_model=ApiResponse)
-async def ocr_cards_endpoint(request: OCRRequest):
-    """OCR卡牌识别接口
-    
-    使用PaddleOCR识别图片中的扑克牌，返回手牌和公共牌。
-    
-    Args:
-        request (OCRRequest): 包含图片路径的请求对象
-        
-    Returns:
-        ApiResponse: 包含识别结果的响应对象
-            - success: 是否识别成功
-            - message: 成功或失败的消息
-            - data: 识别结果数据
-                - hand_cards: 手牌列表
-                - public_cards: 公共牌列表
-    """
+@router.post("/region/copy", response_model=ApiResponse)
+async def copy_region_endpoint(request: RegionCopyRequest):
+    """区域截图
+    请求: {"image_path": "data/screenshots/screenshot_1234567890.png", "region": [100, 200, 300, 400], "type": 1}
+    响应: {"success": true, "data": {"path": "data/screenshots/public/public.png"}}"""
     try:
-        result = recognize_cards(request.image_path)
+        success, result = RegionProcessor().capture_region(
+            request.image_path,
+            request.region,
+            request.type
+        )
         return ApiResponse(
-            success=result["success"],
-            message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
-            data={
-                "hand_cards": result["hand_cards"],
-                "public_cards": result["public_cards"]
-            } if result["success"] else None
+            success=success,
+            message="区域截图成功" if success else f"区域截图失败: {result.get('error', '未知错误')}",
+            data={"path": result.get("path")} if success else None
         )
     except Exception as e:
         return ApiResponse(
             success=False,
-            message=f"识别失败: {str(e)}"
+            message=f"区域截图失败: {str(e)}"
         )
 
-@router.post("/ai/recognize_cards", response_model=ApiResponse)
-async def ai_cards_endpoint(request: OCRRequest):
-    """AI卡牌识别接口
-    
-    使用YOLO模型识别图片中的扑克牌，返回手牌和公共牌。
-    相比OCR识别，AI识别可能在某些情况下提供更准确的识别结果。
-    
-    Args:
-        request (OCRRequest): 包含图片路径的请求对象
-        
-    Returns:
-        ApiResponse: 包含识别结果的响应对象
-            - success: 是否识别成功
-            - message: 成功或失败的消息
-            - data: 识别结果数据
-                - predictions: 完整的预测结果
-                - hand_cards: 手牌列表
-                - public_cards: 公共牌列表
-    """
+@router.post("/device/screen/region", response_model=ApiResponse)
+async def screen_region(request: ScreenRegionRequest):
+    """区域截图
+    请求: {"device_id": "127.0.0.1:16384", "type": 1, "region": [200, 300, 400, 500]}
+    响应: {"success": true, "data": {"path": "data/screenshots/public/public.png"}}"""
     try:
-        from src.core.ai_card import recognize_cards
-        result = recognize_cards(request.image_path)
+        success, result = screen_region_processor.capture_region(
+            request.device_id,
+            request.type,
+            region=request.region
+        )
         return ApiResponse(
-            success=result["success"],
-            message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
-            data=result if result["success"] else None
+            success=success,
+            message="区域截图成功" if success else f"区域截图失败: {result.get('error', '未知错误')}",
+            data={"path": result.get("path")} if success else None
         )
     except Exception as e:
         return ApiResponse(
             success=False,
-            message=f"识别失败: {str(e)}"
+            message=f"区域截图失败: {str(e)}"
         )
 
 # 将router集成到主应用

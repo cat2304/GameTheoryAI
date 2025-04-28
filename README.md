@@ -57,8 +57,10 @@ curl -X POST http://localhost:8000/api/mumu/screenshot
 ```
 
 ### 3. OCR识别
+
+#### 3.1 全图文字识别
 ```bash
-curl -X POST http://localhost:8000/api/ocr/recognize \
+curl -X POST http://localhost:8000/api/ocr/recognize_all \
   -H "Content-Type: application/json" \
   -d '{"image_path": "data/screenshots/screenshot_1234567890.png"}'
 ```
@@ -69,8 +71,110 @@ curl -X POST http://localhost:8000/api/ocr/recognize \
     "success": true,
     "message": "识别成功",
     "data": {
-        "text": "识别结果",
-        "confidence": 0.95
+        "texts": [
+            {
+                "text": "识别结果",
+                "confidence": 0.95,
+                "position": {
+                    "x": 100,
+                    "y": 200,
+                    "width": 50,
+                    "height": 30
+                }
+            }
+        ]
+    }
+}
+```
+
+#### 3.2 区域文字识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize_region \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_path": "data/screenshots/screenshot_1234567890.png",
+    "region": [100, 200, 300, 400],
+    "type": 1
+  }'
+```
+
+参数说明：
+- `image_path`: 图片路径
+- `region`: 区域坐标 [x, y, width, height]
+- `type`: 区域类型
+  - `1`: 公牌区域 (OCR_PUBLIC)
+  - `2`: 手牌区域 (OCR_HAND)
+  - `3`: 操作区域 (OCR_OP)
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "texts": [
+            {
+                "text": "识别结果",
+                "confidence": 0.95,
+                "position": {
+                    "x": 100,
+                    "y": 200,
+                    "width": 50,
+                    "height": 30
+                }
+            }
+        ],
+        "type": 1
+    }
+}
+```
+
+#### 3.3 卡牌识别
+```bash
+curl -X POST http://localhost:8000/api/ocr/recognize_cards \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "data/screenshots/screenshot_1234567890.png"}'
+```
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "hand_cards": ["10s", "7s", "6h", "Am"],
+        "public_cards": []
+    }
+}
+```
+
+#### 3.4 AI卡牌识别
+```bash
+curl -X POST http://localhost:8000/api/ai/recognize_cards \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "data/screenshots/screenshot_1234567890.png"}'
+```
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "predictions": [
+            {
+                "x": 345,
+                "y": 824.5,
+                "width": 32,
+                "height": 41,
+                "confidence": 0.759,
+                "class": "2f",
+                "class_id": 4,
+                "detection_id": "cf360137-7578-48e7-9d95-14c488c04e78"
+            }
+        ],
+        "hand_cards": ["10s", "7s", "6h", "Am"],
+        "public_cards": []
     }
 }
 ```
@@ -78,18 +182,16 @@ curl -X POST http://localhost:8000/api/ocr/recognize \
 ## 项目结构
 
 ```
-GameTheoryAI/
+.
 ├── data/
-│   ├── debug/          # 调试输出目录
-│   ├── screenshots/    # 截图保存目录
-│   └── templates/      # 模板图片目录
-├── logs/               # 日志文件目录
+│   └── screenshots/      # 截图保存目录
 ├── src/
-│   ├── control/        # 控制模块
-│   ├── core/           # 核心逻辑
-│   └── vision/         # 视觉识别模块
-├── main.py            # 主程序入口
-└── README.md          # 项目说明文档
+│   └── core/
+│       ├── screen_all.py     # 全屏截图功能
+│       └── screen_region.py  # 区域截图功能
+├── docs/
+│   └── api.md           # API文档
+└── test_screen_region.py  # 测试脚本
 ```
 
 ## 核心业务逻辑
@@ -143,199 +245,122 @@ GameTheoryAI/
 
 # GameTheoryAI
 
-基于深度学习的游戏AI系统，用于自动化游戏操作和决策。
+## 项目结构
 
-## 功能特点
-
-- 基于 PaddleOCR 的文本识别
-- 基于 ADB 的自动化操作
-- 基于 FastAPI 的 RESTful API 服务
-- 支持设备管理和监控
-- 支持屏幕捕获和图像处理
-- 支持自动化点击和操作
-
-## 环境要求
-
-- Python 3.8+
-- ADB 工具
-- Android 设备或模拟器
-- PaddleOCR 模型
-
-## 安装
-
-1. 克隆仓库：
-```bash
-git clone https://github.com/yourusername/GameTheoryAI.git
-cd GameTheoryAI
+```
+.
+├── data/
+│   └── screenshots/      # 截图保存目录
+├── src/
+│   ├── api/
+│   │   └── routes.py     # API接口定义
+│   └── core/
+│       ├── adb.py        # ADB控制
+│       ├── screen_all.py # 全屏截图
+│       ├── ocr_all.py    # 全图OCR
+│       ├── ocr_region.py # 区域OCR
+│       └── copy_region.py # 区域截图
+├── docs/
+│   └── api.md           # API文档
+└── main.py             # 主程序入口
 ```
 
-2. 安装依赖：
+## API 接口
+
+### 设备管理
+
+1. 获取设备列表
+   - 路径: `/api/device/list`
+   - 方法: POST
+   - 请求: `{}`
+   - 响应: `{"success": true, "data": {"devices": ["127.0.0.1:16384"]}}`
+
+2. 获取当前设备信息
+   - 路径: `/api/device/current`
+   - 方法: POST
+   - 请求: `{"device_id": "127.0.0.1:16384"}`
+   - 响应: `{"success": true, "data": {"device_id": "127.0.0.1:16384", "status": "connected", "screen_size": {"width": 1920, "height": 1080}}}`
+
+3. 连接设备
+   - 路径: `/api/device/connect`
+   - 方法: POST
+   - 请求: `{"device_id": "127.0.0.1:16384"}`
+   - 响应: `{"success": true, "data": {"device_id": "127.0.0.1:16384"}}`
+
+4. 断开设备连接
+   - 路径: `/api/device/disconnect`
+   - 方法: POST
+   - 请求: `{"device_id": "127.0.0.1:16384"}`
+   - 响应: `{"success": true, "message": "设备断开连接成功"}`
+
+### 设备操作
+
+1. 点击操作
+   - 路径: `/api/device/click`
+   - 方法: POST
+   - 请求: `{"device_id": "127.0.0.1:16384", "x": 100, "y": 200}`
+   - 响应: `{"success": true, "data": {"device_id": "127.0.0.1:16384", "x": 100, "y": 200, "timestamp": 1234567890.123}}`
+
+2. 截屏操作
+   - 路径: `/api/device/screenshot`
+   - 方法: POST
+   - 请求: `{"device_id": "127.0.0.1:16384"}`
+   - 响应: `{"success": true, "data": {"device_id": "127.0.0.1:16384", "path": "data/screenshots/screenshot_1234567890.png", "timestamp": 1234567890}}`
+
+### OCR识别
+
+1. 全图文字识别
+   - 路径: `/api/ocr/recognize_all`
+   - 方法: POST
+   - 请求: `{"image_path": "data/screenshots/screenshot_1234567890.png"}`
+   - 响应: `{"success": true, "data": {"texts": [{"text": "识别结果", "confidence": 0.95, "position": {"x": 100, "y": 200, "width": 50, "height": 30}}]}}`
+
+2. 区域文字识别
+   - 路径: `/api/ocr/recognize_region`
+   - 方法: POST
+   - 请求: `{"image_path": "data/screenshots/screenshot_1234567890.png", "region": [100, 200, 300, 400], "type": 1}`
+   - 响应: `{"success": true, "data": {"texts": [{"text": "识别结果", "confidence": 0.95, "position": {"x": 100, "y": 200, "width": 50, "height": 30}}], "type": 1}}`
+
+### 区域操作
+
+1. 区域截图
+   - 路径: `/api/region/copy`
+   - 方法: POST
+   - 请求: `{"image_path": "data/screenshots/screenshot_1234567890.png", "region": [100, 200, 300, 400], "type": "public"}`
+   - 响应: `{"success": true, "data": {"path": "data/screenshots/public/public.png"}}`
+
+## 安装依赖
+
 ```bash
 pip install -r requirements.txt
 ```
 
-3. 安装 ADB 工具（如果尚未安装）：
-```bash
-# macOS
-brew install android-platform-tools
+## 运行服务
 
-# Ubuntu
-sudo apt-get install android-tools-adb
-```
-
-## 使用方法
-
-1. 启动服务：
 ```bash
 python main.py
 ```
 
-2. 服务将在 http://localhost:8000 上运行
-
-## API 接口
-
-### 1. 设备管理
-
-#### 获取设备列表
-```bash
-curl -X POST http://localhost:8000/api/device/list \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-#### 获取当前设备信息
-```bash
-curl -X POST http://localhost:8000/api/device/current \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "device_id"}'
-```
-
-#### 连接设备
-```bash
-curl -X POST http://localhost:8000/api/device/connect \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "device_id"}'
-```
-
-#### 断开设备连接
-```bash
-curl -X POST http://localhost:8000/api/device/disconnect \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "device_id"}'
-```
-
-### 2. 设备操作
-
-#### 点击操作
-```bash
-curl -X POST http://localhost:8000/api/device/click \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "device_id", "x": 100, "y": 200}'
-```
-
-#### 截屏操作
-```bash
-curl -X POST http://localhost:8000/api/device/screenshot \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "device_id"}'
-```
-
-### 3. OCR 识别
-
-#### 全图识别
-```bash
-curl -X POST http://localhost:8000/api/ocr/recognize_all \
-  -H "Content-Type: application/json" \
-  -d '{"image_path": "path/to/image.png"}'
-```
-
-#### 区域识别
-```bash
-curl -X POST http://localhost:8000/api/ocr/recognize_region \
-  -H "Content-Type: application/json" \
-  -d '{"image_path": "path/to/image.png", "region": [x, y, width, height]}'
-```
-
-#### OCR 卡牌识别
-```bash
-curl -X POST http://localhost:8000/api/ocr/recognize_cards \
-  -H "Content-Type: application/json" \
-  -d '{"image_path": "path/to/image.png"}'
-```
-
-响应示例：
-```json
-{
-    "success": true,
-    "message": "识别成功",
-    "data": {
-        "hand_cards": ["Ah", "Kd"],
-        "public_cards": ["2c", "3h", "4s", "5d", "6h"]
-    }
-}
-```
-
-#### AI 卡牌识别
-```bash
-curl -X POST http://localhost:8000/api/ai/recognize_cards \
-  -H "Content-Type: application/json" \
-  -d '{"image_path": "path/to/image.png"}'
-```
-
-响应示例：
-```json
-{
-    "success": true,
-    "message": "识别成功",
-    "data": {
-        "hand_cards": ["Ah", "Kd"],
-        "public_cards": ["2c", "3h", "4s", "5d", "6h"]
-    }
-}
-```
-
-注意：AI 卡牌识别使用 YOLO 模型进行识别，相比 OCR 识别可能在某些情况下提供更准确的识别结果。
-
-## 目录结构
-
-```
-GameTheoryAI/
-├── main.py              # 主程序入口
-├── requirements.txt     # 依赖包列表
-├── README.md           # 项目说明文档
-├── src/                # 源代码目录
-│   ├── api/            # API接口
-│   │   └── routes.py   # 路由定义
-│   ├── core/           # 核心功能
-│   │   ├── adb.py      # ADB控制器
-│   │   ├── ocr.py      # OCR处理器
-│   │   └── screen.py   # 屏幕捕获
-│   └── utils/          # 工具函数
-├── data/               # 数据目录
-│   ├── screenshots/    # 截图保存目录
-│   └── debug/         # 调试输出目录
-└── logs/              # 日志目录
-```
-
-## 开发说明
-
-1. 代码风格遵循 PEP 8 规范
-2. 使用类型注解提高代码可读性
-3. 使用 logging 模块进行日志记录
-4. 使用 FastAPI 框架提供 RESTful API
-5. 使用 PaddleOCR 进行文本识别
-6. 使用 ADB 进行设备控制和操作
-
 ## 注意事项
 
-1. 确保 ADB 工具已正确安装并添加到系统环境变量
-2. 确保 Android 设备已启用 USB 调试模式
-3. 确保设备已通过 USB 连接或网络连接
-4. 首次运行时需要下载 PaddleOCR 模型
+1. 使用前请确保：
+   - Android 设备已连接
+   - ADB 已正确配置
+   - 设备已授权调试
+
+2. 区域坐标：
+   - 坐标原点在屏幕左上角
+   - 坐标单位为像素
+   - 建议区域大小不超过屏幕分辨率
+
+3. 文件保存：
+   - 自动创建目录
+   - 自动处理文件名
+   - 支持自定义文件名
 
 ## 贡献指南
 
-1. Fork 本仓库
+1. Fork 项目
 2. 创建特性分支
 3. 提交更改
 4. 推送到分支

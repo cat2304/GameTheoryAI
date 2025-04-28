@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from paddleocr import PaddleOCR
 from typing import Dict, List, Tuple, Optional, Any
+from src.core.enums import RegionType
 
 # ============ 配置常量 ============
 DEBUG_DIR = "data/debug"
@@ -36,14 +37,7 @@ class OCRRegionProcessor:
         self.logger = logging.getLogger(__name__)
 
     def get_image_size(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
-        """获取图片尺寸
-        
-        Args:
-            image_path: 图片路径
-            
-        Returns:
-            Tuple[bool, Dict[str, Any]]: (是否成功, 图片尺寸信息)
-        """
+        """获取图片尺寸"""
         try:
             img = cv2.imread(image_path)
             if img is None:
@@ -59,16 +53,8 @@ class OCRRegionProcessor:
             self.logger.error(f"获取图片尺寸失败: {str(e)}")
             return False, {"error": str(e)}
 
-    def recognize_region(self, image_path: str, region: Tuple[int, int, int, int]) -> Tuple[bool, Dict[str, Any]]:
-        """识别指定区域的文字
-        
-        Args:
-            image_path: 图片路径
-            region: 区域坐标 (x, y, width, height)
-            
-        Returns:
-            Tuple[bool, Dict[str, Any]]: (是否成功, 识别结果)
-        """
+    def recognize_region(self, image_path: str, region: Tuple[int, int, int, int], type: RegionType = RegionType.PUBLIC) -> Tuple[bool, Dict[str, Any]]:
+        """识别指定区域的文字"""
         try:
             # 读取图片
             img = cv2.imread(image_path)
@@ -111,7 +97,8 @@ class OCRRegionProcessor:
             
             return True, {
                 "success": True,
-                "texts": texts
+                "texts": texts,
+                "type": type.value
             }
             
         except Exception as e:
