@@ -6,12 +6,12 @@ import numpy as np
 from paddleocr import PaddleOCR
 from typing import Dict, List, Tuple, Optional, Any
 
-# ============ 配置常量 ============
+# 配置常量
 DEBUG_DIR = "data/debug"
 RESULT_IMG = os.path.join(DEBUG_DIR, "full_ocr_result.png")
 os.makedirs(DEBUG_DIR, exist_ok=True)
 
-# ============ 日志配置 ============
+# 日志配置
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============ OCR 配置 ============
+# OCR配置
 ocr = PaddleOCR(
     use_angle_cls=False,
     lang="ch",
@@ -35,51 +35,42 @@ class OCRProcessor:
         self.ocr = ocr
         self.logger = logging.getLogger(__name__)
 
+    def _calculate_text_box(self, points: np.ndarray) -> Dict[str, int]:
+        """计算文本框的位置和大小"""
+        return {
+            "x": int(np.mean(points[:, 0])),
+            "y": int(np.mean(points[:, 1])),
+            "width": int(np.max(points[:, 0]) - np.min(points[:, 0])),
+            "height": int(np.max(points[:, 1]) - np.min(points[:, 1]))
+        }
+
+    def _process_ocr_result(self, result: List) -> List[Dict[str, Any]]:
+        """处理OCR识别结果"""
+        texts = []
+        for box, (text, conf) in result[0]:
+            points = np.array(box)
+            texts.append({
+                "text": text.strip(),
+                "confidence": float(conf),
+                "position": self._calculate_text_box(points)
+            })
+        return texts
+
     def recognize_all_text(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
-        """识别图片中的所有文字
-        
-        Args:
-            image_path: 图片路径
-            
-        Returns:
-            Tuple[bool, Dict[str, Any]]: (是否成功, 识别结果)
-        """
+        """识别图片中的所有文字"""
         try:
-            # 读取图片
+            if not os.path.exists(image_path):
+                return False, {"error": f"图片不存在: {image_path}"}
+
             img = cv2.imread(image_path)
             if img is None:
                 return False, {"error": f"无法读取图片: {image_path}"}
             
-            # 执行OCR识别
             result = self.ocr.ocr(img, cls=False)
-            
-            # 处理识别结果
             if not result or not result[0]:
                 return False, {"error": "未识别到任何文字"}
             
-            # 提取所有文字及其位置信息
-            texts = []
-            for box, (text, conf) in result[0]:
-                # 计算文本框的中心点
-                points = np.array(box)
-                center_x = int(np.mean(points[:, 0]))
-                center_y = int(np.mean(points[:, 1]))
-                
-                # 计算文本框的宽度和高度
-                width = int(np.max(points[:, 0]) - np.min(points[:, 0]))
-                height = int(np.max(points[:, 1]) - np.min(points[:, 1]))
-                
-                texts.append({
-                    "text": text.strip(),
-                    "confidence": float(conf),
-                    "position": {
-                        "x": center_x,
-                        "y": center_y,
-                        "width": width,
-                        "height": height
-                    }
-                })
-            
+            texts = self._process_ocr_result(result)
             return True, {
                 "success": True,
                 "texts": texts
@@ -94,13 +85,9 @@ class OCRProcessor:
         return self.recognize_all_text(image_path)
 
 if __name__ == "__main__":
-    # 测试代码
-    test_image = "data/templates/public.png"
+    test_image = "data/screenshots/latest.png"
     if os.path.exists(test_image):
-        # 创建OCR处理器
         processor = OCRProcessor()
-        
-        # 测试全图识别
         success, result = processor.recognize_all_text(test_image)
         if success:
             print("全图识别结果：", json.dumps(result, ensure_ascii=False, indent=2))
