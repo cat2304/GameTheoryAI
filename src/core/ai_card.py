@@ -66,7 +66,12 @@ class YOLOCard:
         
         # 按位置排序（从上到下，从左到右）
         predictions.sort(key=lambda x: (x["y"], x["x"]))
-        return {"predictions": predictions}
+        return {
+            "success": True,
+            "data": {
+                "predictions": predictions
+            }
+        }
 
 def recognize_cards(image_path: str) -> dict:
     """识别图片中的扑克牌，返回手牌和公共牌"""
@@ -78,7 +83,7 @@ def recognize_cards(image_path: str) -> dict:
         # 分类手牌和公共牌
         hand_cards = []
         public_cards = []
-        for pred in result["predictions"]:
+        for pred in result["data"]["predictions"]:
             card = pred["class"]
             if pred["y"] > 0.7:  # y坐标大于0.7为手牌
                 hand_cards.append(card)
@@ -87,16 +92,15 @@ def recognize_cards(image_path: str) -> dict:
         
         return {
             "success": True,
-            "predictions": result["predictions"],
-            "hand_cards": hand_cards,
-            "public_cards": public_cards
+            "data": {
+                "predictions": result["data"]["predictions"],
+                "hand_cards": hand_cards,
+                "public_cards": public_cards
+            }
         }
     except Exception as e:
         return {
             "success": False,
-            "predictions": [],
-            "hand_cards": [],
-            "public_cards": [],
             "error": str(e)
         }
 
@@ -111,9 +115,5 @@ if __name__ == "__main__":
     result = tester.predict_single_image(image_path)
     
     # 打印结果
-    print("\n✨ 识别结果:")
-    if result["predictions"]:
-        for pred in result["predictions"]:
-            print(f"- 牌面: {pred['class']}, 置信度: {pred['confidence']:.3f}, 位置: ({pred['x']:.1f}, {pred['y']:.1f})")
-    else:
-        print("没有识别到任何卡牌")
+    print("\n✨ 识别结果:",result)
+
