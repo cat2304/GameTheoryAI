@@ -42,7 +42,7 @@ class YOLOTester:
         results = self.model.predict(
             source=image_path,
             imgsz=640,
-            conf=0.25,        # 置信度阈值
+            conf=0.39,        # 置信度阈值，与 Roboflow 设置一致
             iou=0.45,         # NMS的IoU阈值
             device=self.device,
             verbose=False
@@ -73,8 +73,8 @@ class YOLOTester:
                 }
                 predictions.append(prediction)
         
-        # 按置信度排序
-        predictions.sort(key=lambda x: x["confidence"], reverse=True)
+        # 按位置排序：从上到下，从左到右
+        predictions.sort(key=lambda x: (x["y"], x["x"]))
         
         # 构建输出格式
         output = {

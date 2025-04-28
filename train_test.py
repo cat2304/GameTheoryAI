@@ -48,7 +48,7 @@ class YOLOTester:
             project=save_dir,  # 使用project参数而不是save_dir
             name="predict",    # 指定输出目录名
             imgsz=640,
-            conf=0.25,        # 置信度阈值，可以调整
+            conf=0.25,        # 置信度阈值，与 Roboflow 设置一致
             iou=0.45,         # NMS的IoU阈值
             device=self.device,
             verbose=False
@@ -79,8 +79,8 @@ class YOLOTester:
                 }
                 predictions.append(prediction)
         
-        # 按置信度排序
-        predictions.sort(key=lambda x: x["confidence"], reverse=True)
+        # 按位置排序：从上到下，从左到右
+        predictions.sort(key=lambda x: (x["y"], x["x"]))
         
         # 构建完整的输出格式
         output = {
@@ -112,8 +112,8 @@ class YOLOTester:
 def main():
     # ==== 配置 ====
     model_path = "data/best.pt"  # 你的best.pt模型位置
-    image_path = "/Users/mac/ai/adb/20250427/20250427_161335_9.png"  # 测试图片路径
-    save_dir = "./outputs"  # 结果保存目录
+    image_path = "data/templates/test.png"  # 测试图片路径
+    save_dir = "data/debug/yolo"  # 结果保存目录
 
     # ==== 执行推理 ====
     tester = YOLOTester(model_path)
