@@ -185,7 +185,7 @@ async def adb_click(request: ClickRequest):
     请求: {"device_id": "127.0.0.1:16384", "x": 100, "y": 200}
     响应: {"success": true, "data": {"device_id": "127.0.0.1:16384", "x": 100, "y": 200, "timestamp": 1234567890.123}}"""
     try:
-        success, message = adb_controller.click(request.device_id, request.x, request.y)
+        success, message = adb_controller.click(request.x, request.y, request.device_id)
         return ApiResponse(
             success=success,
             message=message,
