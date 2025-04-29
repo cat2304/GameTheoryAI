@@ -31,6 +31,26 @@ ocr = PaddleOCR(
     show_log=False
 )
 
+def recognize_cards(image_path: str) -> Dict[str, Any]:
+    """识别图片中的扑克牌（兼容旧接口）"""
+    processor = OCRProcessor()
+    success, result = processor.recognize_all_text(image_path)
+    
+    if not success:
+        return {
+            "success": False,
+            "error": result.get("error", "未知错误")
+        }
+    
+    # 提取识别到的卡牌文本
+    cards = [text["text"].upper() for text in result["texts"]]
+    
+    return {
+        "success": True,
+        "hand_cards": cards,  # 暂时将所有识别到的卡牌放在手牌中
+        "public_cards": []    # 公共牌暂时返回空列表
+    }
+
 class OCRProcessor:
     def __init__(self):
         self.ocr = ocr
@@ -107,7 +127,7 @@ class OCRProcessor:
         return self.recognize_all_text(image_path)
 
 if __name__ == "__main__":
-    test_image = "data/screenshots/public/1.png"
+    test_image = "data/templates/test.png"
     processor = OCRProcessor()
     success, result = processor.recognize_all_text(test_image)
     if success:

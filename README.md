@@ -179,6 +179,32 @@ curl -X POST http://localhost:8000/api/ai/recognize_cards \
 }
 ```
 
+#### 3.5 颜色识别
+```bash
+curl -X POST http://localhost:8000/api/color/recognize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_path": "data/screenshots/screenshot_1234567890.png",
+    "region": {"x": 151, "y": 97, "width": 49, "height": 40}
+  }'
+```
+
+参数说明：
+- `image_path`: 图片路径
+- `region`: 区域坐标，包含 x, y, width, height
+
+响应示例：
+```json
+{
+    "success": true,
+    "message": "识别成功",
+    "data": {
+        "region": {"x": 151, "y": 97, "width": 49, "height": 40},
+        "color": {"b": 255, "g": 0, "r": 0, "hex": "#ff0000"}
+    }
+}
+```
+
 ## 项目结构
 
 ```

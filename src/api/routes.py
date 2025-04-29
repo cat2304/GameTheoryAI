@@ -6,11 +6,13 @@ import time
 from src.core.adb import ADBController
 from src.core.screen_all import ScreenCapture
 from src.core.ocr_all import OCRProcessor
+from src.core.ocr_region import OCRRegionProcessor
 from src.core.ocr_card import recognize_cards
 from src.core.copy_region import RegionProcessor
 from src.core.screen_region import ScreenRegionProcessor
 from src.core.enums import RegionType
 from src.core.ai_card import YOLOCard
+from src.core.ocr_color import ColorProcessor
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -19,11 +21,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# 创建路由
+router = APIRouter(prefix="/api")
+
 # 初始化服务
 adb_controller = ADBController()
 screen_capture = ScreenCapture()
 ocr_processor = OCRProcessor()
+ocr_region_processor = OCRRegionProcessor()
 screen_region_processor = ScreenRegionProcessor()
+color_processor = ColorProcessor()
 
 # 请求模型
 class ClickRequest(BaseModel):
@@ -50,6 +57,10 @@ class ScreenRegionRequest(BaseModel):
     type: int = 1  # 区域类型：1=公牌, 2=手牌, 3=操作
     region: Tuple[int, int, int, int]  # (x, y, width, height)
 
+class ColorRequest(BaseModel):
+    image_path: str
+    region: Dict[str, int]  # {"x": int, "y": int, "width": int, "height": int}
+
 # 响应模型
 class ApiResponse(BaseModel):
     success: bool
@@ -71,9 +82,6 @@ class OCRCardResponse(BaseModel):
     hand_cards: List[str]
     public_cards: List[str]
     error: Optional[str] = None
-
-# 初始化路由
-router = APIRouter(prefix="/api")
 
 @router.post("/device/list", response_model=ApiResponse)
 async def list_devices(request: EmptyRequest):
@@ -295,6 +303,89 @@ async def screen_region(request: ScreenRegionRequest):
         return ApiResponse(
             success=False,
             message=f"区域截图失败: {str(e)}"
+        )
+
+@router.post("/color/recognize", response_model=ApiResponse)
+async def recognize_color(request: ColorRequest):
+    """颜色识别
+    请求: {
+        "image_path": "data/screenshots/screenshot_1234567890.png",
+        "region": {"x": 151, "y": 97, "width": 49, "height": 40}
+    }
+    响应: {
+        "success": true,
+        "data": {
+            "region": {"x": 151, "y": 97, "width": 49, "height": 40},
+            "color": {"b": 255, "g": 0, "r": 0, "hex": "#ff0000"}
+        }
+    }"""
+    try:
+        success, result = color_processor.get_region_color(request.image_path, request.region)
+        return ApiResponse(
+            success=success,
+            message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+            data=result if success else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
+
+@router.post("/ocr/recognize_region", response_model=ApiResponse)
+async def ocr_recognize_region(request: RegionCopyRequest):
+    """区域文字识别
+    请求: {
+        "image_path": "data/screenshots/screenshot_1234567890.png",
+        "region": [100, 200, 300, 400],
+        "type": 1
+    }
+    响应: {
+        "success": true,
+        "data": {
+            "texts": [{"text": "识别结果", "confidence": 0.95, "position": {"x": 100, "y": 200, "width": 50, "height": 30}}],
+            "type": 1
+        }
+    }"""
+    try:
+        success, result = ocr_region_processor.recognize_region(
+            request.image_path,
+            tuple(request.region),
+            request.type
+        )
+        return ApiResponse(
+            success=success,
+            message="识别成功" if success else f"识别失败: {result.get('error', '未知错误')}",
+            data=result if success else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
+        )
+
+@router.post("/ocr/recognize_cards", response_model=ApiResponse)
+async def ocr_recognize_cards(request: OCRRequest):
+    """卡牌识别
+    请求: {"image_path": "data/screenshots/screenshot_1234567890.png"}
+    响应: {
+        "success": true,
+        "data": {
+            "hand_cards": ["10s", "7s", "6h", "Am"],
+            "public_cards": []
+        }
+    }"""
+    try:
+        result = recognize_cards(request.image_path)
+        return ApiResponse(
+            success=result["success"],
+            message="识别成功" if result["success"] else f"识别失败: {result.get('error', '未知错误')}",
+            data=result if result["success"] else None
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            message=f"识别失败: {str(e)}"
         )
 
 # 注册路由

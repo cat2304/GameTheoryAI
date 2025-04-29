@@ -43,35 +43,57 @@ class ColorProcessor:
             self.logger.error(f"获取颜色失败: {str(e)}")
             return False, {"error": str(e)}
 
+    def recognize_color(self, image_path: str, regions: List[Dict[str, int]]) -> Tuple[bool, Dict[str, Any]]:
+        """识别多个区域的颜色
+        
+        Args:
+            image_path: 图片路径
+            regions: 区域列表，每个区域包含 x, y, width, height
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 
+                - 第一个元素表示是否成功
+                - 第二个元素包含识别结果或错误信息
+        """
+        try:
+            if not os.path.exists(image_path):
+                return False, {"error": f"图片不存在: {image_path}"}
+            
+            results = []
+            for region in regions:
+                success, result = self.get_region_color(image_path, region)
+                if success:
+                    results.append({
+                        "region": region,
+                        "color": result["color"]
+                    })
+                else:
+                    self.logger.warning(f"区域 {region} 颜色识别失败: {result.get('error')}")
+            
+            return True, {
+                "success": True,
+                "regions": results
+            }
+            
+        except Exception as e:
+            self.logger.error(f"颜色识别失败: {str(e)}")
+            return False, {"error": str(e)}
+
 if __name__ == "__main__":
     test_image = "data/screenshots/public/1.png"
     processor = ColorProcessor()
     
-    # 测试区域1
-    success, result = processor.get_region_color(
-        test_image,
-        {"x": 151, "y": 97, "width": 49, "height": 40}
-    )
-    print("颜色识别结果：", result)
-
-    # 测试区域2
-    success, result = processor.get_region_color(
-        test_image,
-        {"x": 65, "y": 98, "width": 20, "height": 22}
-    )
-    print("颜色识别结果：", result)
-
-    # 测试区域3
-    success, result = processor.get_region_color(
-        test_image,
-        {"x": 234, "y": 97, "width": 19, "height": 24}
-    )
-    print("颜色识别结果：", result)
-
-    # 测试区域4
-    success, result = processor.get_region_color(
-        test_image,
+    # 测试多个区域
+    regions = [
+        {"x": 151, "y": 97, "width": 49, "height": 40},
+        {"x": 65, "y": 98, "width": 20, "height": 22},
+        {"x": 234, "y": 97, "width": 19, "height": 24},
         {"x": 318, "y": 96, "width": 16, "height": 18}
-    )
-    print("颜色识别结果：", result)
+    ]
+    
+    success, result = processor.recognize_color(test_image, regions)
+    if success:
+        print("颜色识别结果：", result)
+    else:
+        print("颜色识别失败：", result.get("error", "未知错误"))
 

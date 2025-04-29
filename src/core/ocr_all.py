@@ -85,9 +85,11 @@ class OCRProcessor:
         return self.recognize_all_text(image_path)
 
 if __name__ == "__main__":
-    test_image = "data/screenshots/latest.png"
+    test_image = "data/templates/test.png"
     if os.path.exists(test_image):
         processor = OCRProcessor()
+        
+        # 测试全图识别
         success, result = processor.recognize_all_text(test_image)
         if success:
             print("全图识别结果：", json.dumps(result, ensure_ascii=False, indent=2))
