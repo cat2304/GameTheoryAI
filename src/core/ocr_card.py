@@ -36,6 +36,19 @@ class OCRProcessor:
         self.ocr = ocr
         self.logger = logging.getLogger(__name__)
         self.color_processor = ColorProcessor()
+        # 扑克牌数字的正则表达式
+        self.card_patterns = {
+            'numbers': ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'a', 'j', 'q', 'k']
+        }
+
+    def _is_poker_card_text(self, text: str) -> bool:
+        """判断文本是否为扑克牌信息"""
+        text = text.strip()
+        # 移除所有空格
+        text = text.replace(' ', '')
+        
+        # 检查是否完全匹配扑克牌数字
+        return text in self.card_patterns['numbers']
 
     def _calculate_text_box(self, points: np.ndarray) -> Dict[str, int]:
         """计算文本框的位置和大小"""
@@ -50,6 +63,10 @@ class OCRProcessor:
         """处理OCR识别结果"""
         texts = []
         for box, (text, conf) in result[0]:
+            # 只处理扑克牌相关的文本
+            if not self._is_poker_card_text(text):
+                continue
+                
             points = np.array(box)
             position = self._calculate_text_box(points)
             
