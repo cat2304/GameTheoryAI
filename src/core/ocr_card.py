@@ -32,7 +32,7 @@ ocr = PaddleOCR(
 )
 
 def recognize_cards(image_path: str) -> Dict[str, Any]:
-    """识别图片中的扑克牌（兼容旧接口）"""
+    """识别图片中的扑克牌"""
     processor = OCRProcessor()
     success, result = processor.recognize_all_text(image_path)
     
@@ -42,13 +42,24 @@ def recognize_cards(image_path: str) -> Dict[str, Any]:
             "error": result.get("error", "未知错误")
         }
     
-    # 提取识别到的卡牌文本
-    cards = [text["text"].upper() for text in result["texts"]]
+    # 提取识别到的卡牌信息
+    cards = []
+    
+    for text_info in result["texts"]:
+        card_info = {
+            "text": text_info["text"].upper(),
+            "confidence": text_info["confidence"],
+            "position": text_info["position"],
+            "color": text_info["color"]
+        }
+        cards.append(card_info)
     
     return {
         "success": True,
-        "hand_cards": cards,  # 暂时将所有识别到的卡牌放在手牌中
-        "public_cards": []    # 公共牌暂时返回空列表
+        "data": {
+            "cards": cards,
+            "image_path": image_path
+        }
     }
 
 class OCRProcessor:
@@ -70,49 +81,110 @@ class OCRProcessor:
         # 检查是否完全匹配扑克牌数字
         return text in self.card_patterns['numbers']
 
-    def _calculate_text_box(self, points: np.ndarray) -> Dict[str, int]:
+    def _calculate_text_box(self, points: List[List[int]]) -> Dict[str, int]:
         """计算文本框的位置和大小"""
+        x_coords = [p[0] for p in points]
+        y_coords = [p[1] for p in points]
         return {
-            "x": int(np.mean(points[:, 0])),
-            "y": int(np.mean(points[:, 1])),
-            "width": int(np.max(points[:, 0]) - np.min(points[:, 0])),
-            "height": int(np.max(points[:, 1]) - np.min(points[:, 1]))
+            "x": min(x_coords),
+            "y": min(y_coords),
+            "width": max(x_coords) - min(x_coords),
+            "height": max(y_coords) - min(y_coords)
         }
 
-    def _process_ocr_result(self, result: List, image_path: str) -> List[Dict[str, Any]]:
+    def _process_ocr_result(self, result: List[List[Any]]) -> List[Dict[str, Any]]:
         """处理OCR识别结果"""
         texts = []
-        for box, (text, conf) in result[0]:
-            # 只处理扑克牌相关的文本
+        for line in result:
+            if not line:
+                continue
+            text = line[1][0]  # 文本内容
+            confidence = float(line[1][1])  # 置信度
+            points = line[0]  # 位置信息
+            
+            # 只处理扑克牌文本
             if not self._is_poker_card_text(text):
                 continue
-                
-            points = np.array(box)
+            
+            # 计算文本框位置和大小
             position = self._calculate_text_box(points)
             
-            # 获取区域颜色
-            _, color_result = self.color_processor.get_region_color(image_path, position)
+            # 获取文本颜色
+            x, y = int(position["x"]), int(position["y"])
+            w, h = int(position["width"]), int(position["height"])
+            roi = self.current_image[y:y+h, x:x+w]
+            if roi.size > 0:
+                color = self._get_text_color(roi)
+            else:
+                color = {"r": 0, "g": 0, "b": 0, "hex": "#000000"}
             
             texts.append({
-                "text": text.strip(),
-                "confidence": float(conf),
+                "text": text.upper(),  # 统一转换为大写
+                "confidence": confidence,
                 "position": position,
-                "color": color_result.get("color", {}) if color_result.get("success") else {}
+                "color": color
             })
         return texts
+
+    def _get_text_color(self, roi: np.ndarray) -> Dict[str, Any]:
+        """获取文本颜色"""
+        if roi.size == 0:
+            return {"r": 0, "g": 0, "b": 0, "hex": "#000000"}
+            
+        # 转换为灰度图
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        
+        # 二值化
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # 找到非零像素
+        non_zero = cv2.findNonZero(binary)
+        if non_zero is None:
+            return {"r": 0, "g": 0, "b": 0, "hex": "#000000"}
+            
+        # 计算非零像素的平均颜色
+        mean_color = cv2.mean(roi, mask=binary)[:3]
+        
+        # 转换为整数
+        b, g, r = map(int, mean_color)
+        
+        # 转换为十六进制
+        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+        
+        return {
+            "r": r,
+            "g": g,
+            "b": b,
+            "hex": hex_color
+        }
 
     def recognize_all_text(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
         """识别图片中的所有文字"""
         try:
-            img = cv2.imread(image_path)
-            if img is None:
+            if not os.path.exists(image_path):
+                self.logger.error(f"图片不存在: {image_path}")
+                return False, {"error": f"图片不存在: {image_path}"}
+
+            # 读取图片
+            self.current_image = cv2.imread(image_path)
+            if self.current_image is None:
+                self.logger.error(f"无法读取图片: {image_path}")
                 return False, {"error": f"无法读取图片: {image_path}"}
             
-            result = self.ocr.ocr(img, cls=False)
+            # OCR识别
+            result = self.ocr.ocr(self.current_image, cls=False)
             if not result or not result[0]:
+                self.logger.warning("未识别到任何文字")
                 return False, {"error": "未识别到任何文字"}
             
-            texts = self._process_ocr_result(result, image_path)
+            # 处理识别结果
+            texts = self._process_ocr_result(result[0])
+            
+            # 记录识别结果
+            self.logger.info(f"识别到 {len(texts)} 个文本")
+            for text in texts:
+                self.logger.info(f"文本: {text['text']}, 置信度: {text['confidence']:.4f}, 位置: {text['position']}, 颜色: {text['color']['hex']}")
+            
             return True, {
                 "success": True,
                 "texts": texts
@@ -127,10 +199,16 @@ class OCRProcessor:
         return self.recognize_all_text(image_path)
 
 if __name__ == "__main__":
-    test_image = "data/templates/test.png"
+    test_image = "data/screenshots/hand/2.png"
+    
+    # 测试recognize_all_text
     processor = OCRProcessor()
     success, result = processor.recognize_all_text(test_image)
     if success:
-        print("全图识别结果：", json.dumps(result, ensure_ascii=False, indent=2))
+        print("\n全图识别结果：", json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print("全图识别失败：", result.get("error", "未知错误")) 
+        print("\n全图识别失败：", result.get("error", "未知错误"))
+        
+    # 测试recognize_cards
+    card_result = recognize_cards(test_image)
+    print("\n卡牌识别结果：", json.dumps(card_result, ensure_ascii=False, indent=2)) 
