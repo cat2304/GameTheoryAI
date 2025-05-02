@@ -107,7 +107,7 @@ async def get_current_device(request: DeviceRequest):
     请求: {"device_id": "127.0.0.1:16384"}
     响应: {"success": true, "data": {"device_id": "127.0.0.1:16384", "status": "connected", "screen_size": {"width": 1920, "height": 1080}}}"""
     try:
-        screen_size = adb_controller.get_screen_size(request.device_id)
+        screen_size = adb_controller.get_screen_size()
         if not screen_size:
             return ApiResponse(
                 success=False,
