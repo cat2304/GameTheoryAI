@@ -9,7 +9,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # 定义数据集位置
 DATASET_DIR = "dataset"
 # 定义输出目录
-OUTPUT_DIR = "output"
+OUTPUT_DIR = "data/output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 model = RFDETRBase(
