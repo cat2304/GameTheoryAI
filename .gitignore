@@ -44,23 +44,23 @@ env/
 *.log
 *.sqlite
 *.db
+*.jpg
+*.png
+*.jpeg
+*.webp
 
 # Directories
 wandb/
 output/
 runs/
+dataset/
+data/
 
 # Git LFS
 .git/lfs/
 
 # Local development
 .env.local
-
-# Test
-.pytest_cache/
-.coverage
-htmlcov/
-coverage.xml
 
 # Local configuration
 *.local.yaml
@@ -71,10 +71,3 @@ coverage.xml
 *.pyd
 .Python
 *.so
-
-# Project specific
-src/core/ocr/
-yolov8/
-data/yolov8/
-*.pt
-*.onnx 
