@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Model weights
+*.pth
+*.onnx
+*.safetensors
+checkpoints/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.env
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data
+*.csv
+*.dat
+*.log
+*.sqlite
+*.db
+
+# Directories
+wandb/
+output/
+runs/
+
+# Git LFS
+.git/lfs/
+
+# Local development
+.env.local
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Local configuration
+*.local.yaml
+
+# Build
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Project specific
+src/core/ocr/
+yolov8/
+data/yolov8/
+*.pt
+*.onnx 
