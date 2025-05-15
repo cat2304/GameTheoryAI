@@ -22,7 +22,6 @@ wheels/
 
 # Model weights
 *.pth
-*.onnx
 *.safetensors
 checkpoints/
 

@@ -62,13 +62,3 @@ if annotated_image.mode == 'RGBA':
     annotated_image = annotated_image.convert('RGB')
 annotated_image.save("annotated_result.jpg")
 print("✅ The results have been saved as annotated_result.jpg")
-
-# === 如果您想使用自己训练的模型 ===
-# 取消注释以下代码并替换为您的模型ID
-"""
-# 自定义训练的模型ID格式: "model-name/version"
-custom_model_id = "YOUR_MODEL_NAME/1"
-custom_model = get_model(custom_model_id)
-custom_predictions = custom_model.infer(image, confidence=0.5)[0]
-# ... 可以参照上面的代码处理结果
-"""
