@@ -4,18 +4,20 @@ from PIL import Image
 from io import BytesIO
 import requests
 
-# === 下载远程图片 ===
-image_url = "https://source.roboflow.com/lSpmw3Tr6YXjOje5YdgODT1qKTZ2/T2uoidvFPwpPno9TAeUG/original.jpg"
-print(f"下载图片: {image_url}")
-response = requests.get(image_url)
+# === 使用本地图片 ===
+image_path = "data/templates/test.png"
+print(f"加载本地图片: {image_path}")
 
-if response.status_code != 200:
-    print(f"图片下载失败: {response.status_code}")
+if not os.path.exists(image_path):
+    print(f"❌ 图片不存在: {image_path}")
     exit(1)
 
-image_data = BytesIO(response.content)
-image = Image.open(image_data)
-print("✅ 图片下载成功")
+try:
+    image = Image.open(image_path)
+    print("✅ 图片加载成功")
+except Exception as e:
+    print(f"❌ 图片加载失败: {e}")
+    exit(1)
 
 try:
     # 导入inference库
