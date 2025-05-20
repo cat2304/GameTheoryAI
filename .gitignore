@@ -24,6 +24,9 @@ wheels/
 *.pth
 *.safetensors
 checkpoints/
+data/*.pth
+data/*.onnx
+data/*.pt
 
 # Virtual environments
 venv/
@@ -43,17 +46,19 @@ env/
 *.log
 *.sqlite
 *.db
-*.jpg
-*.png
-*.jpeg
-*.webp
+data/*.jpg
+data/*.png
+data/*.jpeg
+data/*.webp
+data/temp/
+data/output/
+data/screenshots/
 
 # Directories
 wandb/
 output/
 runs/
 dataset/
-data/
 
 # Git LFS
 .git/lfs/
@@ -70,3 +75,6 @@ data/
 *.pyd
 .Python
 *.so
+
+# OS files
+.DS_Store
